@@ -116,7 +116,6 @@ layout.SortOrder = Enum.SortOrder.LayoutOrder
 layout.Padding = UDim.new(0, 8)
 layout.Parent = content
 
--- Нижний отступ
 local bottomPad = Instance.new("Frame")
 bottomPad.Size = UDim2.new(1, 0, 0, 8)
 bottomPad.BackgroundTransparency = 1
@@ -195,61 +194,117 @@ local function makeToggle(labelText, order, callback)
     return frame
 end
 
-local function makeSlider(labelText, min, max, default, order, callback)
+-- === СЛАЙДЕР + ПОЛЕ ВВОДА ===
+local sliderFill, sliderThumb, sliderValLbl, speedInputBox
+
+local function makeSpeedControl(order)
+    local SLIDER_MIN = 10
+    local SLIDER_MAX = 200
+    local INPUT_MAX = 500
+
     local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, 0, 0, 52)
+    frame.Size = UDim2.new(1, 0, 0, 80)
     frame.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
     frame.BorderSizePixel = 0
     frame.LayoutOrder = order
     frame.Parent = content
     Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
 
+    -- Заголовок
     local lbl = Instance.new("TextLabel")
-    lbl.Size = UDim2.new(1, -50, 0, 24)
-    lbl.Position = UDim2.new(0, 12, 0, 4)
+    lbl.Size = UDim2.new(1, -12, 0, 22)
+    lbl.Position = UDim2.new(0, 12, 0, 6)
     lbl.BackgroundTransparency = 1
-    lbl.Text = labelText
+    lbl.Text = "Скорость полёта"
     lbl.TextColor3 = Color3.fromRGB(220, 220, 240)
     lbl.TextSize = 14
     lbl.Font = Enum.Font.Gotham
     lbl.TextXAlignment = Enum.TextXAlignment.Left
     lbl.Parent = frame
 
-    local valLbl = Instance.new("TextLabel")
-    valLbl.Size = UDim2.new(0, 40, 0, 24)
-    valLbl.Position = UDim2.new(1, -50, 0, 4)
-    valLbl.BackgroundTransparency = 1
-    valLbl.Text = tostring(default)
-    valLbl.TextColor3 = Color3.fromRGB(100, 60, 220)
-    valLbl.TextSize = 14
-    valLbl.Font = Enum.Font.GothamBold
-    valLbl.TextXAlignment = Enum.TextXAlignment.Right
-    valLbl.Parent = frame
+    -- Поле ввода (до 500)
+    local inputFrame = Instance.new("Frame")
+    inputFrame.Size = UDim2.new(0, 72, 0, 24)
+    inputFrame.Position = UDim2.new(1, -82, 0, 4)
+    inputFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+    inputFrame.BorderSizePixel = 0
+    inputFrame.Parent = frame
+    Instance.new("UICorner", inputFrame).CornerRadius = UDim.new(0, 6)
 
+    speedInputBox = Instance.new("TextBox")
+    speedInputBox.Size = UDim2.new(1, -8, 1, 0)
+    speedInputBox.Position = UDim2.new(0, 4, 0, 0)
+    speedInputBox.BackgroundTransparency = 1
+    speedInputBox.BorderSizePixel = 0
+    speedInputBox.Text = tostring(config.flySpeed)
+    speedInputBox.PlaceholderText = "10-500"
+    speedInputBox.PlaceholderColor3 = Color3.fromRGB(100, 100, 120)
+    speedInputBox.TextColor3 = Color3.fromRGB(100, 60, 220)
+    speedInputBox.TextSize = 13
+    speedInputBox.Font = Enum.Font.GothamBold
+    speedInputBox.TextXAlignment = Enum.TextXAlignment.Center
+    speedInputBox.ClearTextOnFocus = false
+    speedInputBox.Parent = inputFrame
+
+    -- Полоска (до 200)
     local track = Instance.new("Frame")
     track.Size = UDim2.new(1, -24, 0, 6)
-    track.Position = UDim2.new(0, 12, 0, 36)
+    track.Position = UDim2.new(0, 12, 0, 56)
     track.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
     track.BorderSizePixel = 0
     track.Parent = frame
     Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
 
     local fill = Instance.new("Frame")
-    fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
+    local initRel = (config.flySpeed - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN)
+    fill.Size = UDim2.new(math.clamp(initRel, 0, 1), 0, 1, 0)
     fill.BackgroundColor3 = Color3.fromRGB(100, 60, 220)
     fill.BorderSizePixel = 0
     fill.Parent = track
     Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
+    sliderFill = fill
 
     local thumb = Instance.new("Frame")
     thumb.Size = UDim2.new(0, 14, 0, 14)
-    thumb.Position = UDim2.new((default - min) / (max - min), -7, 0.5, -7)
+    thumb.Position = UDim2.new(math.clamp(initRel, 0, 1), -7, 0.5, -7)
     thumb.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     thumb.BorderSizePixel = 0
     thumb.ZIndex = 2
     thumb.Parent = track
     Instance.new("UICorner", thumb).CornerRadius = UDim.new(1, 0)
+    sliderThumb = thumb
 
+    -- Подписи мин/макс под полоской
+    local minLbl = Instance.new("TextLabel")
+    minLbl.Size = UDim2.new(0, 30, 0, 14)
+    minLbl.Position = UDim2.new(0, 12, 0, 63)
+    minLbl.BackgroundTransparency = 1
+    minLbl.Text = tostring(SLIDER_MIN)
+    minLbl.TextColor3 = Color3.fromRGB(100, 100, 120)
+    minLbl.TextSize = 11
+    minLbl.Font = Enum.Font.Gotham
+    minLbl.TextXAlignment = Enum.TextXAlignment.Left
+    minLbl.Parent = frame
+
+    local maxLbl = Instance.new("TextLabel")
+    maxLbl.Size = UDim2.new(0, 30, 0, 14)
+    maxLbl.Position = UDim2.new(1, -42, 0, 63)
+    maxLbl.BackgroundTransparency = 1
+    maxLbl.Text = tostring(SLIDER_MAX)
+    maxLbl.TextColor3 = Color3.fromRGB(100, 100, 120)
+    maxLbl.TextSize = 11
+    maxLbl.Font = Enum.Font.Gotham
+    maxLbl.TextXAlignment = Enum.TextXAlignment.Right
+    maxLbl.Parent = frame
+
+    -- Обновление слайдера из значения
+    local function updateSliderVisual(val)
+        local rel = math.clamp((val - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN), 0, 1)
+        fill.Size = UDim2.new(rel, 0, 1, 0)
+        thumb.Position = UDim2.new(rel, -7, 0.5, -7)
+    end
+
+    -- Слайдер -> обновляет поле и скорость
     local sliding = false
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, 0, 0, 30)
@@ -270,11 +325,24 @@ local function makeSlider(labelText, min, max, default, order, callback)
             local trackPos = track.AbsolutePosition.X
             local trackWidth = track.AbsoluteSize.X
             local rel = math.clamp((i.Position.X - trackPos) / trackWidth, 0, 1)
-            local val = math.floor(min + (max - min) * rel)
-            valLbl.Text = tostring(val)
+            local val = math.floor(SLIDER_MIN + (SLIDER_MAX - SLIDER_MIN) * rel)
+            config.flySpeed = val
+            speedInputBox.Text = tostring(val)
             fill.Size = UDim2.new(rel, 0, 1, 0)
             thumb.Position = UDim2.new(rel, -7, 0.5, -7)
-            callback(val)
+        end
+    end)
+
+    -- Поле ввода -> обновляет слайдер и скорость
+    speedInputBox.FocusLost:Connect(function()
+        local val = tonumber(speedInputBox.Text)
+        if val then
+            val = math.clamp(math.floor(val), 1, INPUT_MAX)
+            config.flySpeed = val
+            speedInputBox.Text = tostring(val)
+            updateSliderVisual(val)
+        else
+            speedInputBox.Text = tostring(config.flySpeed)
         end
     end)
 end
@@ -436,9 +504,7 @@ makeToggle("Ноуклип", 3, function(state)
     end
 end)
 
-makeSlider("Скорость полёта", 10, 200, 50, 4, function(val)
-    config.flySpeed = val
-end)
+makeSpeedControl(4)
 
 makeLabel("— Преследование", content, 5)
 
