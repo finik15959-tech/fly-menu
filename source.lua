@@ -258,6 +258,7 @@ end
 
 -- === СЛАЙДЕР ===
 local speedInputBox
+local sliderFill, sliderThumb
 
 local function makeSpeedControl(order)
     local SLIDER_MIN = 10
@@ -314,7 +315,7 @@ local function makeSpeedControl(order)
     track.Parent = frame
     Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
 
-    local fill = Instance.new("Frame")
+    fill = Instance.new("Frame")
     local initRel = (config.flySpeed - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN)
     fill.Size = UDim2.new(math.clamp(initRel, 0, 1), 0, 1, 0)
     fill.BackgroundColor3 = Color3.fromRGB(100, 60, 220)
@@ -322,7 +323,7 @@ local function makeSpeedControl(order)
     fill.Parent = track
     Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
 
-    local thumb = Instance.new("Frame")
+    thumb = Instance.new("Frame")
     thumb.Size = UDim2.new(0, 14, 0, 14)
     thumb.Position = UDim2.new(math.clamp(initRel, 0, 1), -7, 0.5, -7)
     thumb.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -330,6 +331,8 @@ local function makeSpeedControl(order)
     thumb.ZIndex = 2
     thumb.Parent = track
     Instance.new("UICorner", thumb).CornerRadius = UDim.new(1, 0)
+    sliderFill = fill
+    sliderThumb = thumb
 
     local minLbl = Instance.new("TextLabel")
     minLbl.Size = UDim2.new(0, 30, 0, 14)
@@ -909,6 +912,155 @@ hintLbl.Font = Enum.Font.Gotham
 hintLbl.TextXAlignment = Enum.TextXAlignment.Center
 hintLbl.LayoutOrder = 11
 hintLbl.Parent = content
+
+-- ===============================
+-- === КНОПКИ SAVE / LOAD ===
+-- ===============================
+
+-- Статусная подпись
+local saveStatusLbl = Instance.new("TextLabel")
+saveStatusLbl.Size = UDim2.new(1, 0, 0, 16)
+saveStatusLbl.BackgroundTransparency = 1
+saveStatusLbl.Text = ""
+saveStatusLbl.TextColor3 = Color3.fromRGB(100, 220, 130)
+saveStatusLbl.TextSize = 11
+saveStatusLbl.Font = Enum.Font.GothamBold
+saveStatusLbl.TextXAlignment = Enum.TextXAlignment.Center
+saveStatusLbl.LayoutOrder = 115
+saveStatusLbl.Parent = content
+
+local function showStatus(msg, isError)
+    saveStatusLbl.Text = msg
+    saveStatusLbl.TextColor3 = isError
+        and Color3.fromRGB(220, 80, 80)
+        or  Color3.fromRGB(100, 220, 130)
+    task.delay(2.5, function()
+        saveStatusLbl.Text = ""
+    end)
+end
+
+local saveBtnsFrame = Instance.new("Frame")
+saveBtnsFrame.Size = UDim2.new(1, 0, 0, 36)
+saveBtnsFrame.BackgroundTransparency = 1
+saveBtnsFrame.BorderSizePixel = 0
+saveBtnsFrame.LayoutOrder = 116
+saveBtnsFrame.Parent = content
+
+-- Кнопка SAVE
+local saveBtn = Instance.new("TextButton")
+saveBtn.Size = UDim2.new(0.48, 0, 1, 0)
+saveBtn.Position = UDim2.new(0, 0, 0, 0)
+saveBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 90)
+saveBtn.BorderSizePixel = 0
+saveBtn.Text = "💾  Сохранить"
+saveBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+saveBtn.TextSize = 13
+saveBtn.Font = Enum.Font.GothamBold
+saveBtn.Parent = saveBtnsFrame
+Instance.new("UICorner", saveBtn).CornerRadius = UDim.new(0, 8)
+
+-- Кнопка LOAD
+local loadBtn = Instance.new("TextButton")
+loadBtn.Size = UDim2.new(0.48, 0, 1, 0)
+loadBtn.Position = UDim2.new(0.52, 0, 0, 0)
+loadBtn.BackgroundColor3 = Color3.fromRGB(60, 100, 200)
+loadBtn.BorderSizePixel = 0
+loadBtn.Text = "📂  Загрузить"
+loadBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+loadBtn.TextSize = 13
+loadBtn.Font = Enum.Font.GothamBold
+loadBtn.Parent = saveBtnsFrame
+Instance.new("UICorner", loadBtn).CornerRadius = UDim.new(0, 8)
+
+-- Логика Save
+saveBtn.MouseButton1Click:Connect(function()
+    local ok, err = pcall(function()
+        local data = {
+            flySpeed     = config.flySpeed,
+            bindFly      = tostring(binds.fly),
+            bindNoclip   = tostring(binds.noclip),
+            bindUnfollow = tostring(binds.unfollow),
+            bindMenuKey  = tostring(menuBind.key),
+        }
+        writefile(SAVE_FILE, game:GetService("HttpService"):JSONEncode(data))
+    end)
+    if ok then
+        TweenService:Create(saveBtn, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(40, 200, 100)}):Play()
+        task.delay(0.3, function()
+            TweenService:Create(saveBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(60, 160, 90)}):Play()
+        end)
+        showStatus("✔ Настройки сохранены!", false)
+    else
+        showStatus("✘ Ошибка сохранения", true)
+    end
+end)
+
+-- Логика Load
+local function applyLoadedSettings()
+    local ok, result = pcall(function()
+        if isfile(SAVE_FILE) then
+            return game:GetService("HttpService"):JSONDecode(readfile(SAVE_FILE))
+        end
+    end)
+    if not ok or not result then
+        showStatus("✘ Файл не найден", true)
+        return
+    end
+
+    local function toKeyCode(str)
+        if not str then return nil end
+        local name = str:match("Enum%.KeyCode%.(.+)") or str
+        local ok2, kc = pcall(function() return Enum.KeyCode[name] end)
+        return (ok2 and kc) or nil
+    end
+
+    -- Скорость
+    if type(result.flySpeed) == "number" then
+        config.flySpeed = math.clamp(math.floor(result.flySpeed), 1, 500)
+        if speedInputBox then
+            speedInputBox.Text = tostring(config.flySpeed)
+        end
+        -- Обновить слайдер визуально
+        if sliderFill and sliderThumb then
+            local SLIDER_MIN, SLIDER_MAX = 10, 200
+            local rel = math.clamp((config.flySpeed - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN), 0, 1)
+            sliderFill.Size = UDim2.new(rel, 0, 1, 0)
+            sliderThumb.Position = UDim2.new(rel, -7, 0.5, -7)
+        end
+    end
+
+    -- Бинды действий
+    local bindFields = {
+        {field = "bindFly",      key = "fly"},
+        {field = "bindNoclip",   key = "noclip"},
+        {field = "bindUnfollow", key = "unfollow"},
+    }
+    for _, b in ipairs(bindFields) do
+        local kc = toKeyCode(result[b.field])
+        if kc then
+            binds[b.key] = kc
+            local btn = bindKeyLabels[b.key]
+            if btn then btn.Text = keyName(kc) end
+        end
+    end
+
+    -- Бинд меню
+    local mk = toKeyCode(result.bindMenuKey)
+    if mk then
+        menuBind.key = mk
+        if menuKeyBtn then menuKeyBtn.Text = menuBindDisplay() end
+    end
+
+    showStatus("✔ Настройки загружены!", false)
+end
+
+loadBtn.MouseButton1Click:Connect(function()
+    TweenService:Create(loadBtn, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(40, 130, 255)}):Play()
+    task.delay(0.3, function()
+        TweenService:Create(loadBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(60, 100, 200)}):Play()
+    end)
+    applyLoadedSettings()
+end)
 
 -- ===============================
 -- === ПОДПИСЬ DreamCompany ===
