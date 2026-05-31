@@ -287,7 +287,6 @@ local function enableFly()
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not hrp or not hum then return end
 
-    -- чистим всё старое перед созданием нового
     if bodyVelocity then bodyVelocity:Destroy() bodyVelocity = nil end
     if bodyGyro then bodyGyro:Destroy() bodyGyro = nil end
     for _, v in pairs(hrp:GetChildren()) do
@@ -324,15 +323,8 @@ local function disableFly()
 end
 
 -- === HEARTBEAT ===
-local lastUpdate = 0
-local UPDATE_RATE = 0.1
-
-RunService.Heartbeat:Connect(function()
+RunService.Heartbeat:Connect(function(dt)
     if not config.flying then return end
-
-    local now = tick()
-    if now - lastUpdate < UPDATE_RATE then return end
-    lastUpdate = now
 
     local char = localPlayer.Character
     if not char then return end
@@ -343,15 +335,20 @@ RunService.Heartbeat:Connect(function()
         local tc = config.targetPlayer.Character
         local thrp = tc and tc:FindFirstChild("HumanoidRootPart")
         if thrp then
-            local myPos = hrp.Position
             local targetPos = thrp.Position + Vector3.new(0, config.followHeight, 0)
-            local dist = (targetPos - myPos).Magnitude
+            local diff = targetPos - hrp.Position
+            local dist = diff.Magnitude
+
             if dist > config.followDistance then
-                hrp.CFrame = hrp.CFrame:Lerp(CFrame.new(targetPos), 0.3)
-                bodyVelocity.Velocity = Vector3.zero
+                -- Скорость пропорциональна расстоянию, плавное торможение при приближении
+                local speed = math.clamp(dist * 3, 5, config.flySpeed * 2)
+                bodyVelocity.Velocity = diff.Unit * speed
             else
                 bodyVelocity.Velocity = Vector3.zero
             end
+
+            -- Поворачиваем в сторону цели
+            bodyGyro.CFrame = CFrame.new(hrp.Position, thrp.Position)
         end
     else
         local cam = workspace.CurrentCamera
