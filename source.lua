@@ -19,9 +19,15 @@ local config = {
 
 -- === БИНДЫ (изменяемые) ===
 local binds = {
-    fly     = Enum.KeyCode.F5,
-    noclip  = Enum.KeyCode.F6,
+    fly      = Enum.KeyCode.F5,
+    noclip   = Enum.KeyCode.F6,
     unfollow = Enum.KeyCode.F7,
+}
+
+-- Бинд открытия/закрытия меню (Modifier + Key)
+local menuBind = {
+    modifier = Enum.KeyCode.LeftShift,
+    key      = Enum.KeyCode.C,
 }
 
 -- Ключ -> отображаемое имя
@@ -447,6 +453,20 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
+-- === ОТКРЫТИЕ/ЗАКРЫТИЕ МЕНЮ ===
+local menuVisible = true
+
+local function toggleMenu()
+    menuVisible = not menuVisible
+    TweenService:Create(mainFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        Size = menuVisible
+            and UDim2.new(0, 280, 0, 620)
+            or  UDim2.new(0, 140, 0, 45),
+    }):Play()
+    -- Прячем/показываем скролл
+    scrollContent.Visible = menuVisible
+end
+
 -- === UI ЭЛЕМЕНТЫ ===
 
 local greetFrame = Instance.new("Frame")
@@ -627,6 +647,89 @@ stopBtn.MouseButton1Click:Connect(doStopFollow)
 -- ===============================
 -- === СЕКЦИЯ БИНДОВ (ИЗМЕНЯЕМЫЕ) ===
 -- ===============================
+
+makeLabel("— Меню", content, 9)
+
+-- Фрейм бинда меню
+local menuBindFrame = Instance.new("Frame")
+menuBindFrame.Size = UDim2.new(1, 0, 0, 68)
+menuBindFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+menuBindFrame.BorderSizePixel = 0
+menuBindFrame.LayoutOrder = 91
+menuBindFrame.Parent = content
+Instance.new("UICorner", menuBindFrame).CornerRadius = UDim.new(0, 8)
+
+-- Подпись
+local menuBindTitle = Instance.new("TextLabel")
+menuBindTitle.Size = UDim2.new(1, -12, 0, 22)
+menuBindTitle.Position = UDim2.new(0, 12, 0, 6)
+menuBindTitle.BackgroundTransparency = 1
+menuBindTitle.Text = "Открыть / закрыть меню"
+menuBindTitle.TextColor3 = Color3.fromRGB(220, 220, 240)
+menuBindTitle.TextSize = 14
+menuBindTitle.Font = Enum.Font.Gotham
+menuBindTitle.TextXAlignment = Enum.TextXAlignment.Left
+menuBindTitle.Parent = menuBindFrame
+
+-- Отображение текущего бинда
+local function menuBindDisplay()
+    return "Shift + " .. keyName(menuBind.key)
+end
+
+-- Состояние прослушивания меню-бинда
+local listeningMenuBind = false
+
+local menuKeyBtn = Instance.new("TextButton")
+menuKeyBtn.Size = UDim2.new(0, 90, 0, 24)
+menuKeyBtn.Position = UDim2.new(1, -100, 0, 6)
+menuKeyBtn.BackgroundColor3 = Color3.fromRGB(100, 60, 220)
+menuKeyBtn.BorderSizePixel = 0
+menuKeyBtn.Text = menuBindDisplay()
+menuKeyBtn.TextSize = 12
+menuKeyBtn.Font = Enum.Font.GothamBold
+menuKeyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+menuKeyBtn.Parent = menuBindFrame
+Instance.new("UICorner", menuKeyBtn).CornerRadius = UDim.new(0, 6)
+
+local menuBindHint = Instance.new("TextLabel")
+menuBindHint.Size = UDim2.new(1, -12, 0, 18)
+menuBindHint.Position = UDim2.new(0, 12, 0, 42)
+menuBindHint.BackgroundTransparency = 1
+menuBindHint.Text = "Нажмите кнопку, затем любую клавишу"
+menuBindHint.TextColor3 = Color3.fromRGB(100, 100, 130)
+menuBindHint.TextSize = 11
+menuBindHint.Font = Enum.Font.Gotham
+menuBindHint.TextXAlignment = Enum.TextXAlignment.Left
+menuBindHint.Parent = menuBindFrame
+
+menuKeyBtn.MouseButton1Click:Connect(function()
+    if listeningMenuBind then
+        listeningMenuBind = false
+        menuKeyBtn.Text = menuBindDisplay()
+        TweenService:Create(menuKeyBtn, TweenInfo.new(0.15), {
+            BackgroundColor3 = Color3.fromRGB(100, 60, 220)
+        }):Play()
+        menuBindHint.Text = "Нажмите кнопку, затем любую клавишу"
+    else
+        -- Сбросить другие слушатели
+        if listeningFor then
+            local oldBtn = bindKeyLabels[listeningFor]
+            if oldBtn then
+                oldBtn.Text = keyName(binds[listeningFor])
+                TweenService:Create(oldBtn, TweenInfo.new(0.15), {
+                    BackgroundColor3 = Color3.fromRGB(100, 60, 220)
+                }):Play()
+            end
+            listeningFor = nil
+        end
+        listeningMenuBind = true
+        menuKeyBtn.Text = "..."
+        TweenService:Create(menuKeyBtn, TweenInfo.new(0.15), {
+            BackgroundColor3 = Color3.fromRGB(220, 160, 30)
+        }):Play()
+        menuBindHint.Text = "Нажмите новую клавишу (Shift будет добавлен)"
+    end
+end)
 
 makeLabel("— Бинды", content, 9)
 
@@ -827,7 +930,44 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         return
     end
 
+    -- Прослушивание меню-бинда
+    if listeningMenuBind then
+        local kc = input.KeyCode
+        if kc == Enum.KeyCode.Escape then
+            listeningMenuBind = false
+            menuKeyBtn.Text = menuBindDisplay()
+            TweenService:Create(menuKeyBtn, TweenInfo.new(0.15), {
+                BackgroundColor3 = Color3.fromRGB(100, 60, 220)
+            }):Play()
+            menuBindHint.Text = "Нажмите кнопку, затем любую клавишу"
+        elseif not blockedKeys[kc]
+            and kc ~= Enum.KeyCode.Unknown
+            and kc ~= Enum.KeyCode.LeftShift
+            and kc ~= Enum.KeyCode.RightShift
+            and kc ~= Enum.KeyCode.LeftControl
+            and kc ~= Enum.KeyCode.RightControl
+            and kc ~= Enum.KeyCode.LeftAlt
+            and kc ~= Enum.KeyCode.RightAlt then
+            menuBind.key = kc
+            menuKeyBtn.Text = menuBindDisplay()
+            TweenService:Create(menuKeyBtn, TweenInfo.new(0.15), {
+                BackgroundColor3 = Color3.fromRGB(100, 60, 220)
+            }):Play()
+            menuBindHint.Text = "Нажмите кнопку, затем любую клавишу"
+            listeningMenuBind = false
+        end
+        return
+    end
+
     if gameProcessed then return end
+
+    -- Бинд меню (Shift + key)
+    local shiftHeld = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift)
+        or UserInputService:IsKeyDown(Enum.KeyCode.RightShift)
+    if shiftHeld and input.KeyCode == menuBind.key then
+        toggleMenu()
+        return
+    end
 
     -- Обычные бинды
     if input.KeyCode == binds.fly then
