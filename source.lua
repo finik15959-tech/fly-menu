@@ -262,6 +262,24 @@ end
 -- === ПОЛЁТ ЛОГИКА ===
 local bodyVelocity, bodyGyro
 
+local function unfreezeChar()
+    local char = localPlayer.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if hum then
+        hum.PlatformStand = false
+        hum.AutoRotate = true
+    end
+    if hrp then
+        for _, v in pairs(hrp:GetChildren()) do
+            if v:IsA("BodyVelocity") or v:IsA("BodyGyro") then
+                v:Destroy()
+            end
+        end
+    end
+end
+
 local function enableFly()
     local char = localPlayer.Character
     if not char then return end
@@ -269,6 +287,7 @@ local function enableFly()
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not hrp or not hum then return end
     hum.PlatformStand = true
+    hum.AutoRotate = false
     bodyVelocity = Instance.new("BodyVelocity")
     bodyVelocity.Velocity = Vector3.zero
     bodyVelocity.MaxForce = Vector3.new(1e5, 1e5, 1e5)
@@ -281,15 +300,12 @@ local function enableFly()
 end
 
 local function disableFly()
-    local char = localPlayer.Character
-    if char then
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        if hum then hum.PlatformStand = false end
-    end
-    if bodyVelocity then bodyVelocity:Destroy() end
-    if bodyGyro then bodyGyro:Destroy() end
+    unfreezeChar()
+    if bodyVelocity then bodyVelocity:Destroy() bodyVelocity = nil end
+    if bodyGyro then bodyGyro:Destroy() bodyGyro = nil end
     config.flying = false
     config.following = false
+    config.targetPlayer = nil
 end
 
 -- === HEARTBEAT ===
@@ -315,9 +331,7 @@ RunService.Heartbeat:Connect(function()
             local myPos = hrp.Position
             local targetPos = thrp.Position + Vector3.new(0, config.followHeight, 0)
             local dist = (targetPos - myPos).Magnitude
-
             if dist > config.followDistance then
-                -- CFrame телепорт вместо физики (не нагружает сервер)
                 hrp.CFrame = hrp.CFrame:Lerp(CFrame.new(targetPos), 0.3)
                 bodyVelocity.Velocity = Vector3.zero
             else
@@ -438,6 +452,10 @@ stopBtn.MouseButton1Click:Connect(function()
     if selectedBtn then
         selectedBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
         selectedBtn = nil
+    end
+    -- если полёт выключен — полностью размораживаем
+    if not config.flying then
+        unfreezeChar()
     end
 end)
 
