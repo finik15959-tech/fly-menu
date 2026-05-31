@@ -292,9 +292,9 @@ local function disableFly()
     config.following = false
 end
 
--- === HEARTBEAT С ТРОТТЛИНГОМ ===
+-- === HEARTBEAT ===
 local lastUpdate = 0
-local UPDATE_RATE = 0.05
+local UPDATE_RATE = 0.1
 
 RunService.Heartbeat:Connect(function()
     if not config.flying then return end
@@ -314,17 +314,14 @@ RunService.Heartbeat:Connect(function()
         if thrp then
             local myPos = hrp.Position
             local targetPos = thrp.Position + Vector3.new(0, config.followHeight, 0)
-            local dir = targetPos - myPos
-            local dist = dir.Magnitude
+            local dist = (targetPos - myPos).Magnitude
 
             if dist > config.followDistance then
-                bodyVelocity.Velocity = dir.Unit * config.flySpeed
+                -- CFrame телепорт вместо физики (не нагружает сервер)
+                hrp.CFrame = hrp.CFrame:Lerp(CFrame.new(targetPos), 0.3)
+                bodyVelocity.Velocity = Vector3.zero
             else
                 bodyVelocity.Velocity = Vector3.zero
-            end
-
-            if dist > 2 then
-                bodyGyro.CFrame = CFrame.lookAt(myPos, thrp.Position)
             end
         end
     else
