@@ -103,7 +103,7 @@ layout.SortOrder = Enum.SortOrder.LayoutOrder
 layout.Padding = UDim.new(0, 8)
 layout.Parent = content
 
--- === ФУНКЦИИ ===
+-- === ФУНКЦИИ UI ===
 local function makeLabel(text, parent, order)
     local l = Instance.new("TextLabel")
     l.Size = UDim2.new(1, 0, 0, 18)
@@ -292,25 +292,40 @@ local function disableFly()
     config.following = false
 end
 
+-- === HEARTBEAT С ТРОТТЛИНГОМ ===
+local lastUpdate = 0
+local UPDATE_RATE = 0.05
+
 RunService.Heartbeat:Connect(function()
     if not config.flying then return end
+
+    local now = tick()
+    if now - lastUpdate < UPDATE_RATE then return end
+    lastUpdate = now
+
     local char = localPlayer.Character
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
+    if not hrp or not bodyVelocity or not bodyGyro then return end
 
     if config.following and config.targetPlayer then
         local tc = config.targetPlayer.Character
         local thrp = tc and tc:FindFirstChild("HumanoidRootPart")
         if thrp then
+            local myPos = hrp.Position
             local targetPos = thrp.Position + Vector3.new(0, config.followHeight, 0)
-            local dir = targetPos - hrp.Position
-            if dir.Magnitude > config.followDistance then
+            local dir = targetPos - myPos
+            local dist = dir.Magnitude
+
+            if dist > config.followDistance then
                 bodyVelocity.Velocity = dir.Unit * config.flySpeed
             else
                 bodyVelocity.Velocity = Vector3.zero
             end
-            bodyGyro.CFrame = CFrame.lookAt(hrp.Position, thrp.Position)
+
+            if dist > 2 then
+                bodyGyro.CFrame = CFrame.lookAt(myPos, thrp.Position)
+            end
         end
     else
         local cam = workspace.CurrentCamera
@@ -319,15 +334,14 @@ RunService.Heartbeat:Connect(function()
         if UserInputService:IsKeyDown(Enum.KeyCode.S) then move -= cam.CFrame.LookVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.A) then move -= cam.CFrame.RightVector end
         if UserInputService:IsKeyDown(Enum.KeyCode.D) then move += cam.CFrame.RightVector end
-        if UserInputService:IsKeyDown(Enum.KeyCode.E) then move += Vector3.new(0,1,0) end
-        if UserInputService:IsKeyDown(Enum.KeyCode.Q) then move -= Vector3.new(0,1,0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.E) then move += Vector3.new(0, 1, 0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Q) then move -= Vector3.new(0, 1, 0) end
         bodyVelocity.Velocity = move.Magnitude > 0 and move.Unit * config.flySpeed or Vector3.zero
         bodyGyro.CFrame = cam.CFrame
     end
 end)
 
 -- === UI ЭЛЕМЕНТЫ ===
-
 makeLabel("— Полёт", content, 1)
 
 makeToggle("Включить полёт", 2, function(state)
@@ -370,8 +384,10 @@ local function refreshPlayers()
     for _, c in pairs(scrollFrame:GetChildren()) do
         if c:IsA("TextButton") then c:Destroy() end
     end
+    local count = 0
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= localPlayer then
+            count += 1
             local btn = Instance.new("TextButton")
             btn.Size = UDim2.new(1, -6, 0, 28)
             btn.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
@@ -396,8 +412,7 @@ local function refreshPlayers()
             end)
         end
     end
-    playerLayout.Parent = scrollFrame
-    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, (#Players:GetPlayers() - 1) * 32)
+    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, count * 32)
 end
 
 refreshPlayers()
@@ -429,4 +444,4 @@ stopBtn.MouseButton1Click:Connect(function()
     end
 end)
 
-print("GUI загружен!")
+print("✈ Fly Menu загружен!")
