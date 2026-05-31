@@ -25,10 +25,11 @@ screenGui.Parent = game.CoreGui
 
 -- Главное окно
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 280, 0, 440)
-mainFrame.Position = UDim2.new(0, 20, 0.5, -220)
+mainFrame.Size = UDim2.new(0, 280, 0, 530)
+mainFrame.Position = UDim2.new(0, 20, 0.5, -265)
 mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
 mainFrame.BorderSizePixel = 0
+mainFrame.ClipsDescendants = true
 mainFrame.Parent = screenGui
 
 Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 12)
@@ -92,17 +93,35 @@ UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
 end)
 
--- Контент
+-- Скроллируемый контент
+local scrollContent = Instance.new("ScrollingFrame")
+scrollContent.Size = UDim2.new(1, 0, 1, -45)
+scrollContent.Position = UDim2.new(0, 0, 0, 45)
+scrollContent.BackgroundTransparency = 1
+scrollContent.BorderSizePixel = 0
+scrollContent.ScrollBarThickness = 0
+scrollContent.CanvasSize = UDim2.new(0, 0, 0, 0)
+scrollContent.AutomaticCanvasSize = Enum.AutomaticSize.Y
+scrollContent.Parent = mainFrame
+
 local content = Instance.new("Frame")
-content.Size = UDim2.new(1, -20, 1, -55)
-content.Position = UDim2.new(0, 10, 0, 50)
+content.Size = UDim2.new(1, -20, 0, 0)
+content.Position = UDim2.new(0, 10, 0, 8)
 content.BackgroundTransparency = 1
-content.Parent = mainFrame
+content.AutomaticSize = Enum.AutomaticSize.Y
+content.Parent = scrollContent
 
 local layout = Instance.new("UIListLayout")
 layout.SortOrder = Enum.SortOrder.LayoutOrder
 layout.Padding = UDim.new(0, 8)
 layout.Parent = content
+
+-- Нижний отступ
+local bottomPad = Instance.new("Frame")
+bottomPad.Size = UDim2.new(1, 0, 0, 8)
+bottomPad.BackgroundTransparency = 1
+bottomPad.LayoutOrder = 999
+bottomPad.Parent = content
 
 -- === ФУНКЦИИ UI ===
 local function makeLabel(text, parent, order)
@@ -423,12 +442,45 @@ end)
 
 makeLabel("— Преследование", content, 5)
 
+-- Поле поиска игрока
+local searchFrame = Instance.new("Frame")
+searchFrame.Size = UDim2.new(1, 0, 0, 36)
+searchFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+searchFrame.BorderSizePixel = 0
+searchFrame.LayoutOrder = 6
+searchFrame.Parent = content
+Instance.new("UICorner", searchFrame).CornerRadius = UDim.new(0, 8)
+
+local searchIcon = Instance.new("TextLabel")
+searchIcon.Size = UDim2.new(0, 28, 1, 0)
+searchIcon.Position = UDim2.new(0, 6, 0, 0)
+searchIcon.BackgroundTransparency = 1
+searchIcon.Text = "🔍"
+searchIcon.TextSize = 14
+searchIcon.Font = Enum.Font.Gotham
+searchIcon.Parent = searchFrame
+
+local searchBox = Instance.new("TextBox")
+searchBox.Size = UDim2.new(1, -36, 1, -8)
+searchBox.Position = UDim2.new(0, 30, 0, 4)
+searchBox.BackgroundTransparency = 1
+searchBox.BorderSizePixel = 0
+searchBox.Text = ""
+searchBox.PlaceholderText = "Поиск игрока..."
+searchBox.PlaceholderColor3 = Color3.fromRGB(100, 100, 120)
+searchBox.TextColor3 = Color3.fromRGB(220, 220, 240)
+searchBox.TextSize = 13
+searchBox.Font = Enum.Font.Gotham
+searchBox.TextXAlignment = Enum.TextXAlignment.Left
+searchBox.ClearTextOnFocus = false
+searchBox.Parent = searchFrame
+
 -- Список игроков
 local playersFrame = Instance.new("Frame")
-playersFrame.Size = UDim2.new(1, 0, 0, 130)
+playersFrame.Size = UDim2.new(1, 0, 0, 120)
 playersFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
 playersFrame.BorderSizePixel = 0
-playersFrame.LayoutOrder = 6
+playersFrame.LayoutOrder = 7
 playersFrame.Parent = content
 Instance.new("UICorner", playersFrame).CornerRadius = UDim.new(0, 8)
 
@@ -448,6 +500,7 @@ playerLayout.Padding = UDim.new(0, 4)
 playerLayout.Parent = scrollFrame
 
 local selectedBtn = nil
+local searchQuery = ""
 
 local function refreshPlayers()
     for _, c in pairs(scrollFrame:GetChildren()) do
@@ -457,42 +510,50 @@ local function refreshPlayers()
     local count = 0
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= localPlayer then
-            count += 1
-            local btn = Instance.new("TextButton")
-            btn.Size = UDim2.new(1, -6, 0, 28)
-            btn.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
-            btn.BorderSizePixel = 0
-            btn.Text = "  👤 " .. p.Name
-            btn.TextColor3 = Color3.fromRGB(220, 220, 240)
-            btn.TextSize = 13
-            btn.Font = Enum.Font.Gotham
-            btn.TextXAlignment = Enum.TextXAlignment.Left
-            btn.Parent = scrollFrame
-            Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+            local name = p.Name:lower()
+            if searchQuery == "" or name:find(searchQuery:lower(), 1, true) then
+                count += 1
+                local btn = Instance.new("TextButton")
+                btn.Size = UDim2.new(1, -6, 0, 28)
+                btn.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+                btn.BorderSizePixel = 0
+                btn.Text = "  👤 " .. p.Name
+                btn.TextColor3 = Color3.fromRGB(220, 220, 240)
+                btn.TextSize = 13
+                btn.Font = Enum.Font.Gotham
+                btn.TextXAlignment = Enum.TextXAlignment.Left
+                btn.Parent = scrollFrame
+                Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
 
-            if config.targetPlayer == p then
-                btn.BackgroundColor3 = Color3.fromRGB(100, 60, 220)
-                selectedBtn = btn
-            end
-
-            btn.MouseButton1Click:Connect(function()
-                if selectedBtn then
-                    TweenService:Create(selectedBtn, TweenInfo.new(0.15), {
-                        BackgroundColor3 = Color3.fromRGB(45, 45, 65)
-                    }):Play()
+                if config.targetPlayer == p then
+                    btn.BackgroundColor3 = Color3.fromRGB(100, 60, 220)
+                    selectedBtn = btn
                 end
-                config.targetPlayer = p
-                config.following = true
-                if not config.flying then enableFly() end
-                TweenService:Create(btn, TweenInfo.new(0.15), {
-                    BackgroundColor3 = Color3.fromRGB(100, 60, 220)
-                }):Play()
-                selectedBtn = btn
-            end)
+
+                btn.MouseButton1Click:Connect(function()
+                    if selectedBtn then
+                        TweenService:Create(selectedBtn, TweenInfo.new(0.15), {
+                            BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+                        }):Play()
+                    end
+                    config.targetPlayer = p
+                    config.following = true
+                    if not config.flying then enableFly() end
+                    TweenService:Create(btn, TweenInfo.new(0.15), {
+                        BackgroundColor3 = Color3.fromRGB(100, 60, 220)
+                    }):Play()
+                    selectedBtn = btn
+                end)
+            end
         end
     end
     scrollFrame.CanvasSize = UDim2.new(0, 0, 0, count * 32)
 end
+
+searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+    searchQuery = searchBox.Text
+    refreshPlayers()
+end)
 
 refreshPlayers()
 Players.PlayerAdded:Connect(refreshPlayers)
@@ -510,7 +571,7 @@ stopBtn.Text = "Остановить преследование"
 stopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 stopBtn.TextSize = 13
 stopBtn.Font = Enum.Font.GothamBold
-stopBtn.LayoutOrder = 7
+stopBtn.LayoutOrder = 8
 stopBtn.Parent = content
 Instance.new("UICorner", stopBtn).CornerRadius = UDim.new(0, 8)
 
