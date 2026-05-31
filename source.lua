@@ -458,13 +458,20 @@ local menuVisible = true
 
 local function toggleMenu()
     menuVisible = not menuVisible
-    TweenService:Create(mainFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-        Size = menuVisible
-            and UDim2.new(0, 280, 0, 620)
-            or  UDim2.new(0, 140, 0, 45),
-    }):Play()
-    -- Прячем/показываем скролл
-    scrollContent.Visible = menuVisible
+    if menuVisible then
+        mainFrame.Visible = true
+        mainFrame.Size = UDim2.new(0, 0, 0, 0)
+        TweenService:Create(mainFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Size = UDim2.new(0, 280, 0, 620),
+        }):Play()
+    else
+        TweenService:Create(mainFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+            Size = UDim2.new(0, 0, 0, 0),
+        }):Play()
+        task.delay(0.21, function()
+            mainFrame.Visible = false
+        end)
+    end
 end
 
 -- === UI ЭЛЕМЕНТЫ ===
