@@ -6,6 +6,51 @@ local TweenService = game:GetService("TweenService")
 
 local localPlayer = Players.LocalPlayer
 
+-- === СОХРАНЕНИЕ НАСТРОЕК ===
+local SAVE_FILE = "DreamCheats_settings.json"
+
+local function saveSettings()
+    local data = {
+        flySpeed    = config.flySpeed,
+        bindFly     = tostring(binds.fly),
+        bindNoclip  = tostring(binds.noclip),
+        bindUnfollow = tostring(binds.unfollow),
+        bindMenuKey = tostring(menuBind.key),
+    }
+    local ok, err = pcall(function()
+        writefile(SAVE_FILE, game:GetService("HttpService"):JSONEncode(data))
+    end)
+end
+
+local function loadSettings()
+    local ok, result = pcall(function()
+        if isfile(SAVE_FILE) then
+            local raw = readfile(SAVE_FILE)
+            return game:GetService("HttpService"):JSONDecode(raw)
+        end
+    end)
+    if ok and result then
+        -- Скорость
+        if type(result.flySpeed) == "number" then
+            config.flySpeed = math.clamp(math.floor(result.flySpeed), 1, 500)
+        end
+        -- Бинды — конвертируем строку обратно в KeyCode
+        local function toKeyCode(str)
+            if not str then return nil end
+            local name = str:match("Enum%.KeyCode%.(.+)") or str
+            local ok2, kc = pcall(function() return Enum.KeyCode[name] end)
+            return (ok2 and kc) or nil
+        end
+        binds.fly      = toKeyCode(result.bindFly)      or binds.fly
+        binds.noclip   = toKeyCode(result.bindNoclip)   or binds.noclip
+        binds.unfollow = toKeyCode(result.bindUnfollow) or binds.unfollow
+        menuBind.key   = toKeyCode(result.bindMenuKey)  or menuBind.key
+    end
+end
+
+-- Загрузить при старте
+loadSettings()
+
 -- === НАСТРОЙКИ ===
 local config = {
     flySpeed = 50,
@@ -339,6 +384,7 @@ local function makeSpeedControl(order)
             speedInputBox.Text = tostring(val)
             fill.Size = UDim2.new(rel, 0, 1, 0)
             thumb.Position = UDim2.new(rel, -7, 0.5, -7)
+            saveSettings()
         end
     end)
 
@@ -349,6 +395,7 @@ local function makeSpeedControl(order)
             config.flySpeed = val
             speedInputBox.Text = tostring(val)
             updateSliderVisual(val)
+            saveSettings()
         else
             speedInputBox.Text = tostring(config.flySpeed)
         end
@@ -933,6 +980,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
                 }):Play()
             end
             listeningFor = nil
+            saveSettings()
         end
         return
     end
@@ -962,6 +1010,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
             }):Play()
             menuBindHint.Text = "Нажмите кнопку, затем любую клавишу"
             listeningMenuBind = false
+            saveSettings()
         end
         return
     end
