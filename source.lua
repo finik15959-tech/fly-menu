@@ -286,26 +286,41 @@ local function enableFly()
     local hrp = char:FindFirstChild("HumanoidRootPart")
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not hrp or not hum then return end
+
+    -- чистим всё старое перед созданием нового
+    if bodyVelocity then bodyVelocity:Destroy() bodyVelocity = nil end
+    if bodyGyro then bodyGyro:Destroy() bodyGyro = nil end
+    for _, v in pairs(hrp:GetChildren()) do
+        if v:IsA("BodyVelocity") or v:IsA("BodyGyro") then
+            v:Destroy()
+        end
+    end
+
     hum.PlatformStand = true
     hum.AutoRotate = false
+
     bodyVelocity = Instance.new("BodyVelocity")
     bodyVelocity.Velocity = Vector3.zero
     bodyVelocity.MaxForce = Vector3.new(1e5, 1e5, 1e5)
     bodyVelocity.Parent = hrp
+
     bodyGyro = Instance.new("BodyGyro")
     bodyGyro.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
     bodyGyro.P = 1e4
     bodyGyro.Parent = hrp
+
     config.flying = true
 end
 
 local function disableFly()
-    unfreezeChar()
     if bodyVelocity then bodyVelocity:Destroy() bodyVelocity = nil end
     if bodyGyro then bodyGyro:Destroy() bodyGyro = nil end
     config.flying = false
     config.following = false
     config.targetPlayer = nil
+    task.delay(0.1, function()
+        unfreezeChar()
+    end)
 end
 
 -- === HEARTBEAT ===
@@ -453,9 +468,10 @@ stopBtn.MouseButton1Click:Connect(function()
         selectedBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
         selectedBtn = nil
     end
-    -- если полёт выключен — полностью размораживаем
     if not config.flying then
-        unfreezeChar()
+        task.delay(0.1, function()
+            unfreezeChar()
+        end)
     end
 end)
 
