@@ -340,14 +340,12 @@ RunService.Heartbeat:Connect(function(dt)
             local dist = diff.Magnitude
 
             if dist > config.followDistance then
-                -- Скорость пропорциональна расстоянию, плавное торможение при приближении
                 local speed = math.clamp(dist * 3, 5, config.flySpeed * 2)
                 bodyVelocity.Velocity = diff.Unit * speed
             else
                 bodyVelocity.Velocity = Vector3.zero
             end
 
-            -- Поворачиваем в сторону цели
             bodyGyro.CFrame = CFrame.new(hrp.Position, thrp.Position)
         end
     else
@@ -407,6 +405,7 @@ local function refreshPlayers()
     for _, c in pairs(scrollFrame:GetChildren()) do
         if c:IsA("TextButton") then c:Destroy() end
     end
+    selectedBtn = nil
     local count = 0
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= localPlayer then
@@ -423,14 +422,24 @@ local function refreshPlayers()
             btn.Parent = scrollFrame
             Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
 
+            -- Восстанавливаем подсветку если этот игрок — текущая цель
+            if config.targetPlayer == p then
+                btn.BackgroundColor3 = Color3.fromRGB(100, 60, 220)
+                selectedBtn = btn
+            end
+
             btn.MouseButton1Click:Connect(function()
                 if selectedBtn then
-                    selectedBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+                    TweenService:Create(selectedBtn, TweenInfo.new(0.15), {
+                        BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+                    }):Play()
                 end
                 config.targetPlayer = p
                 config.following = true
                 if not config.flying then enableFly() end
-                btn.BackgroundColor3 = Color3.fromRGB(100, 60, 220)
+                TweenService:Create(btn, TweenInfo.new(0.15), {
+                    BackgroundColor3 = Color3.fromRGB(100, 60, 220)
+                }):Play()
                 selectedBtn = btn
             end)
         end
@@ -462,7 +471,9 @@ stopBtn.MouseButton1Click:Connect(function()
     config.following = false
     config.targetPlayer = nil
     if selectedBtn then
-        selectedBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+        TweenService:Create(selectedBtn, TweenInfo.new(0.15), {
+            BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+        }):Play()
         selectedBtn = nil
     end
     if not config.flying then
