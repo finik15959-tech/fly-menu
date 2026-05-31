@@ -13,6 +13,7 @@ local config = {
     followHeight = 3,
     flying = false,
     following = false,
+    noclip = false,
     targetPlayer = nil
 }
 
@@ -24,8 +25,8 @@ screenGui.Parent = game.CoreGui
 
 -- Главное окно
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 280, 0, 400)
-mainFrame.Position = UDim2.new(0, 20, 0.5, -200)
+mainFrame.Size = UDim2.new(0, 280, 0, 440)
+mainFrame.Position = UDim2.new(0, 20, 0.5, -220)
 mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
 mainFrame.BorderSizePixel = 0
 mainFrame.Parent = screenGui
@@ -322,6 +323,18 @@ local function disableFly()
     end)
 end
 
+-- === НОУКЛИП ЛОГИКА ===
+RunService.Stepped:Connect(function()
+    if not config.noclip then return end
+    local char = localPlayer.Character
+    if not char then return end
+    for _, part in pairs(char:GetDescendants()) do
+        if part:IsA("BasePart") and part.CanCollide then
+            part.CanCollide = false
+        end
+    end
+end)
+
 -- === HEARTBEAT ===
 RunService.Heartbeat:Connect(function(dt)
     if not config.flying then return end
@@ -363,24 +376,59 @@ RunService.Heartbeat:Connect(function(dt)
 end)
 
 -- === UI ЭЛЕМЕНТЫ ===
+
+-- Приветствие
+local greetFrame = Instance.new("Frame")
+greetFrame.Size = UDim2.new(1, 0, 0, 36)
+greetFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+greetFrame.BorderSizePixel = 0
+greetFrame.LayoutOrder = 0
+greetFrame.Parent = content
+Instance.new("UICorner", greetFrame).CornerRadius = UDim.new(0, 8)
+
+local greetLabel = Instance.new("TextLabel")
+greetLabel.Size = UDim2.new(1, -12, 1, 0)
+greetLabel.Position = UDim2.new(0, 12, 0, 0)
+greetLabel.BackgroundTransparency = 1
+greetLabel.Text = "👋  Привет, " .. localPlayer.Name .. "!"
+greetLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+greetLabel.TextSize = 14
+greetLabel.Font = Enum.Font.GothamBold
+greetLabel.TextXAlignment = Enum.TextXAlignment.Left
+greetLabel.Parent = greetFrame
+
 makeLabel("— Полёт", content, 1)
 
 makeToggle("Включить полёт", 2, function(state)
     if state then enableFly() else disableFly() end
 end)
 
-makeSlider("Скорость полёта", 10, 200, 50, 3, function(val)
+makeToggle("Ноуклип", 3, function(state)
+    config.noclip = state
+    if not state then
+        local char = localPlayer.Character
+        if char then
+            for _, part in pairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = true
+                end
+            end
+        end
+    end
+end)
+
+makeSlider("Скорость полёта", 10, 200, 50, 4, function(val)
     config.flySpeed = val
 end)
 
-makeLabel("— Преследование", content, 4)
+makeLabel("— Преследование", content, 5)
 
 -- Список игроков
 local playersFrame = Instance.new("Frame")
 playersFrame.Size = UDim2.new(1, 0, 0, 130)
 playersFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
 playersFrame.BorderSizePixel = 0
-playersFrame.LayoutOrder = 5
+playersFrame.LayoutOrder = 6
 playersFrame.Parent = content
 Instance.new("UICorner", playersFrame).CornerRadius = UDim.new(0, 8)
 
@@ -422,7 +470,6 @@ local function refreshPlayers()
             btn.Parent = scrollFrame
             Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
 
-            -- Восстанавливаем подсветку если этот игрок — текущая цель
             if config.targetPlayer == p then
                 btn.BackgroundColor3 = Color3.fromRGB(100, 60, 220)
                 selectedBtn = btn
@@ -463,7 +510,7 @@ stopBtn.Text = "Остановить преследование"
 stopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 stopBtn.TextSize = 13
 stopBtn.Font = Enum.Font.GothamBold
-stopBtn.LayoutOrder = 6
+stopBtn.LayoutOrder = 7
 stopBtn.Parent = content
 Instance.new("UICorner", stopBtn).CornerRadius = UDim.new(0, 8)
 
