@@ -1,4 +1,4 @@
--- Flight + Follow GUI Script
+-- DreamCheats GUI Script
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -19,14 +19,14 @@ local config = {
 
 -- === СОЗДАНИЕ GUI ===
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "FlyMenu"
+screenGui.Name = "DreamCheats"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = game.CoreGui
 
 -- Главное окно
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 280, 0, 530)
-mainFrame.Position = UDim2.new(0, 20, 0.5, -265)
+mainFrame.Size = UDim2.new(0, 280, 0, 580)
+mainFrame.Position = UDim2.new(0, 20, 0.5, -290)
 mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
 mainFrame.BorderSizePixel = 0
 mainFrame.ClipsDescendants = true
@@ -67,7 +67,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -10, 1, 0)
 title.Position = UDim2.new(0, 10, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "✈  Fly Menu"
+title.Text = "💤  DreamCheats"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.TextSize = 18
 title.Font = Enum.Font.GothamBold
@@ -137,6 +137,11 @@ local function makeLabel(text, parent, order)
     return l
 end
 
+local flyToggleState = false
+local noclipToggleState = false
+local flyToggleCallback = nil
+local noclipToggleCallback = nil
+
 local function makeToggle(labelText, order, callback)
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(1, 0, 0, 36)
@@ -174,14 +179,9 @@ local function makeToggle(labelText, order, callback)
     Instance.new("UICorner", circle).CornerRadius = UDim.new(1, 0)
 
     local state = false
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 1, 0)
-    btn.BackgroundTransparency = 1
-    btn.Text = ""
-    btn.Parent = frame
 
-    btn.MouseButton1Click:Connect(function()
-        state = not state
+    local function setState(newState)
+        state = newState
         TweenService:Create(toggleBg, TweenInfo.new(0.2), {
             BackgroundColor3 = state and Color3.fromRGB(100, 60, 220) or Color3.fromRGB(60, 60, 80)
         }):Play()
@@ -189,9 +189,22 @@ local function makeToggle(labelText, order, callback)
             Position = state and UDim2.new(0, 21, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
         }):Play()
         callback(state)
+    end
+
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 1, 0)
+    btn.BackgroundTransparency = 1
+    btn.Text = ""
+    btn.Parent = frame
+
+    btn.MouseButton1Click:Connect(function()
+        setState(not state)
     end)
 
-    return frame
+    -- Возвращаем функцию переключения для биндов
+    return frame, function()
+        setState(not state)
+    end
 end
 
 -- === СЛАЙДЕР + ПОЛЕ ВВОДА ===
@@ -210,7 +223,6 @@ local function makeSpeedControl(order)
     frame.Parent = content
     Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
 
-    -- Заголовок
     local lbl = Instance.new("TextLabel")
     lbl.Size = UDim2.new(1, -12, 0, 22)
     lbl.Position = UDim2.new(0, 12, 0, 6)
@@ -222,7 +234,6 @@ local function makeSpeedControl(order)
     lbl.TextXAlignment = Enum.TextXAlignment.Left
     lbl.Parent = frame
 
-    -- Поле ввода (до 500)
     local inputFrame = Instance.new("Frame")
     inputFrame.Size = UDim2.new(0, 72, 0, 24)
     inputFrame.Position = UDim2.new(1, -82, 0, 4)
@@ -246,7 +257,6 @@ local function makeSpeedControl(order)
     speedInputBox.ClearTextOnFocus = false
     speedInputBox.Parent = inputFrame
 
-    -- Полоска (до 200)
     local track = Instance.new("Frame")
     track.Size = UDim2.new(1, -24, 0, 6)
     track.Position = UDim2.new(0, 12, 0, 56)
@@ -274,7 +284,6 @@ local function makeSpeedControl(order)
     Instance.new("UICorner", thumb).CornerRadius = UDim.new(1, 0)
     sliderThumb = thumb
 
-    -- Подписи мин/макс под полоской
     local minLbl = Instance.new("TextLabel")
     minLbl.Size = UDim2.new(0, 30, 0, 14)
     minLbl.Position = UDim2.new(0, 12, 0, 63)
@@ -297,14 +306,12 @@ local function makeSpeedControl(order)
     maxLbl.TextXAlignment = Enum.TextXAlignment.Right
     maxLbl.Parent = frame
 
-    -- Обновление слайдера из значения
     local function updateSliderVisual(val)
         local rel = math.clamp((val - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN), 0, 1)
         fill.Size = UDim2.new(rel, 0, 1, 0)
         thumb.Position = UDim2.new(rel, -7, 0.5, -7)
     end
 
-    -- Слайдер -> обновляет поле и скорость
     local sliding = false
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, 0, 0, 30)
@@ -333,7 +340,6 @@ local function makeSpeedControl(order)
         end
     end)
 
-    -- Поле ввода -> обновляет слайдер и скорость
     speedInputBox.FocusLost:Connect(function()
         local val = tonumber(speedInputBox.Text)
         if val then
@@ -378,9 +384,7 @@ local function enableFly()
     if bodyVelocity then bodyVelocity:Destroy() bodyVelocity = nil end
     if bodyGyro then bodyGyro:Destroy() bodyGyro = nil end
     for _, v in pairs(hrp:GetChildren()) do
-        if v:IsA("BodyVelocity") or v:IsA("BodyGyro") then
-            v:Destroy()
-        end
+        if v:IsA("BodyVelocity") or v:IsA("BodyGyro") then v:Destroy() end
     end
 
     hum.PlatformStand = true
@@ -425,7 +429,6 @@ end)
 -- === HEARTBEAT ===
 RunService.Heartbeat:Connect(function(dt)
     if not config.flying then return end
-
     local char = localPlayer.Character
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
@@ -438,14 +441,12 @@ RunService.Heartbeat:Connect(function(dt)
             local targetPos = thrp.Position + Vector3.new(0, config.followHeight, 0)
             local diff = targetPos - hrp.Position
             local dist = diff.Magnitude
-
             if dist > config.followDistance then
                 local speed = math.clamp(dist * 3, 5, config.flySpeed * 2)
                 bodyVelocity.Velocity = diff.Unit * speed
             else
                 bodyVelocity.Velocity = Vector3.zero
             end
-
             bodyGyro.CFrame = CFrame.new(hrp.Position, thrp.Position)
         end
     else
@@ -486,19 +487,17 @@ greetLabel.Parent = greetFrame
 
 makeLabel("— Полёт", content, 1)
 
-makeToggle("Включить полёт", 2, function(state)
+local _, flyToggle = makeToggle("Включить полёт", 2, function(state)
     if state then enableFly() else disableFly() end
 end)
 
-makeToggle("Ноуклип", 3, function(state)
+local _, noclipToggle = makeToggle("Ноуклип", 3, function(state)
     config.noclip = state
     if not state then
         local char = localPlayer.Character
         if char then
             for _, part in pairs(char:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = true
-                end
+                if part:IsA("BasePart") then part.CanCollide = true end
             end
         end
     end
@@ -629,6 +628,8 @@ Players.PlayerRemoving:Connect(function()
 end)
 
 -- Кнопка остановить преследование
+local stopFollowFunc
+
 local stopBtn = Instance.new("TextButton")
 stopBtn.Size = UDim2.new(1, 0, 0, 32)
 stopBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
@@ -641,7 +642,7 @@ stopBtn.LayoutOrder = 8
 stopBtn.Parent = content
 Instance.new("UICorner", stopBtn).CornerRadius = UDim.new(0, 8)
 
-stopBtn.MouseButton1Click:Connect(function()
+local function doStopFollow()
     config.following = false
     config.targetPlayer = nil
     if selectedBtn then
@@ -651,10 +652,146 @@ stopBtn.MouseButton1Click:Connect(function()
         selectedBtn = nil
     end
     if not config.flying then
-        task.delay(0.1, function()
-            unfreezeChar()
-        end)
+        task.delay(0.1, function() unfreezeChar() end)
+    end
+end
+
+stopBtn.MouseButton1Click:Connect(doStopFollow)
+
+-- ===============================
+-- === СЕКЦИЯ БИНДОВ ===
+-- ===============================
+
+makeLabel("— Бинды", content, 9)
+
+local bindsFrame = Instance.new("Frame")
+bindsFrame.Size = UDim2.new(1, 0, 0, 110)
+bindsFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+bindsFrame.BorderSizePixel = 0
+bindsFrame.LayoutOrder = 10
+bindsFrame.Parent = content
+Instance.new("UICorner", bindsFrame).CornerRadius = UDim.new(0, 8)
+
+local bindsLayout = Instance.new("UIListLayout")
+bindsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+bindsLayout.Padding = UDim.new(0, 0)
+bindsLayout.Parent = bindsFrame
+
+local function makeBind(icon, actionName, keyName, order)
+    local row = Instance.new("Frame")
+    row.Size = UDim2.new(1, 0, 0, 34)
+    row.BackgroundTransparency = 1
+    row.BorderSizePixel = 0
+    row.LayoutOrder = order
+    row.Parent = bindsFrame
+
+    local iconLbl = Instance.new("TextLabel")
+    iconLbl.Size = UDim2.new(0, 24, 1, 0)
+    iconLbl.Position = UDim2.new(0, 10, 0, 0)
+    iconLbl.BackgroundTransparency = 1
+    iconLbl.Text = icon
+    iconLbl.TextSize = 14
+    iconLbl.Font = Enum.Font.Gotham
+    iconLbl.TextColor3 = Color3.fromRGB(200, 200, 220)
+    iconLbl.TextXAlignment = Enum.TextXAlignment.Left
+    iconLbl.Parent = row
+
+    local nameLbl = Instance.new("TextLabel")
+    nameLbl.Size = UDim2.new(1, -100, 1, 0)
+    nameLbl.Position = UDim2.new(0, 36, 0, 0)
+    nameLbl.BackgroundTransparency = 1
+    nameLbl.Text = actionName
+    nameLbl.TextSize = 13
+    nameLbl.Font = Enum.Font.Gotham
+    nameLbl.TextColor3 = Color3.fromRGB(200, 200, 220)
+    nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+    nameLbl.Parent = row
+
+    local keyFrame = Instance.new("Frame")
+    keyFrame.Size = UDim2.new(0, 44, 0, 22)
+    keyFrame.Position = UDim2.new(1, -54, 0.5, -11)
+    keyFrame.BackgroundColor3 = Color3.fromRGB(100, 60, 220)
+    keyFrame.BorderSizePixel = 0
+    keyFrame.Parent = row
+    Instance.new("UICorner", keyFrame).CornerRadius = UDim.new(0, 6)
+
+    local keyLbl = Instance.new("TextLabel")
+    keyLbl.Size = UDim2.new(1, 0, 1, 0)
+    keyLbl.BackgroundTransparency = 1
+    keyLbl.Text = keyName
+    keyLbl.TextSize = 12
+    keyLbl.Font = Enum.Font.GothamBold
+    keyLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+    keyLbl.Parent = keyFrame
+
+    -- Разделитель (кроме последней строки)
+    if order < 3 then
+        local divider = Instance.new("Frame")
+        divider.Size = UDim2.new(1, -20, 0, 1)
+        divider.Position = UDim2.new(0, 10, 1, -1)
+        divider.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
+        divider.BorderSizePixel = 0
+        divider.Parent = row
+    end
+end
+
+makeBind("✈", "Полёт", "F5", 1)
+makeBind("👻", "Ноуклип", "F6", 2)
+makeBind("🚫", "Отменить преследование", "F7", 3)
+
+-- ===============================
+-- === ПОДПИСЬ DreamCompany ===
+-- ===============================
+
+local creditsFrame = Instance.new("Frame")
+creditsFrame.Size = UDim2.new(1, 0, 0, 34)
+creditsFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 40)
+creditsFrame.BorderSizePixel = 0
+creditsFrame.LayoutOrder = 11
+creditsFrame.Parent = content
+Instance.new("UICorner", creditsFrame).CornerRadius = UDim.new(0, 8)
+
+-- Тонкая линия-акцент сверху
+local accentLine = Instance.new("Frame")
+accentLine.Size = UDim2.new(1, -20, 0, 2)
+accentLine.Position = UDim2.new(0, 10, 0, 0)
+accentLine.BackgroundColor3 = Color3.fromRGB(100, 60, 220)
+accentLine.BorderSizePixel = 0
+accentLine.Parent = creditsFrame
+Instance.new("UICorner", accentLine).CornerRadius = UDim.new(1, 0)
+
+local creditsLabel = Instance.new("TextLabel")
+creditsLabel.Size = UDim2.new(1, -12, 1, 0)
+creditsLabel.Position = UDim2.new(0, 6, 0, 0)
+creditsLabel.BackgroundTransparency = 1
+creditsLabel.Text = "💜  Благодарим вас от DreamCompany"
+creditsLabel.TextColor3 = Color3.fromRGB(160, 140, 210)
+creditsLabel.TextSize = 12
+creditsLabel.Font = Enum.Font.GothamBold
+creditsLabel.TextXAlignment = Enum.TextXAlignment.Center
+creditsLabel.Parent = creditsFrame
+
+-- ===============================
+-- === ОБРАБОТКА БИНДОВ (КЛАВИШИ) ===
+-- ===============================
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+
+    -- F5 — Полёт
+    if input.KeyCode == Enum.KeyCode.F5 then
+        flyToggle()
+    end
+
+    -- F6 — Ноуклип
+    if input.KeyCode == Enum.KeyCode.F6 then
+        noclipToggle()
+    end
+
+    -- F7 — Отменить преследование
+    if input.KeyCode == Enum.KeyCode.F7 then
+        doStopFollow()
     end
 end)
 
-print("✈ Fly Menu загружен!")
+print("💤 DreamCheats загружен! | F5 - Полёт | F6 - Ноуклип | F7 - Отменить преследование")
