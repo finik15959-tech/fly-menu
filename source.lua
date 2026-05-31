@@ -17,24 +17,34 @@ local config = {
     targetPlayer = nil
 }
 
+-- === БИНДЫ (изменяемые) ===
+local binds = {
+    fly     = Enum.KeyCode.F5,
+    noclip  = Enum.KeyCode.F6,
+    unfollow = Enum.KeyCode.F7,
+}
+
+-- Ключ -> отображаемое имя
+local function keyName(kc)
+    local s = tostring(kc)
+    return s:match("KeyCode%.(.+)") or s
+end
+
 -- === СОЗДАНИЕ GUI ===
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "DreamCheats"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = game.CoreGui
 
--- Главное окно
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 280, 0, 580)
-mainFrame.Position = UDim2.new(0, 20, 0.5, -290)
+mainFrame.Size = UDim2.new(0, 280, 0, 620)
+mainFrame.Position = UDim2.new(0, 20, 0.5, -310)
 mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
 mainFrame.BorderSizePixel = 0
 mainFrame.ClipsDescendants = true
 mainFrame.Parent = screenGui
-
 Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 12)
 
--- Тень
 local shadow = Instance.new("ImageLabel")
 shadow.Size = UDim2.new(1, 20, 1, 20)
 shadow.Position = UDim2.new(0, -10, 0, -10)
@@ -47,13 +57,11 @@ shadow.SliceCenter = Rect.new(23, 23, 277, 277)
 shadow.ZIndex = 0
 shadow.Parent = mainFrame
 
--- Шапка
 local header = Instance.new("Frame")
 header.Size = UDim2.new(1, 0, 0, 45)
 header.BackgroundColor3 = Color3.fromRGB(100, 60, 220)
 header.BorderSizePixel = 0
 header.Parent = mainFrame
-
 Instance.new("UICorner", header).CornerRadius = UDim.new(0, 12)
 
 local fix = Instance.new("Frame")
@@ -74,7 +82,6 @@ title.Font = Enum.Font.GothamBold
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.Parent = header
 
--- Drag окна
 local dragging, dragStart, startPos
 header.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
@@ -93,7 +100,6 @@ UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
 end)
 
--- Скроллируемый контент
 local scrollContent = Instance.new("ScrollingFrame")
 scrollContent.Size = UDim2.new(1, 0, 1, -45)
 scrollContent.Position = UDim2.new(0, 0, 0, 45)
@@ -136,11 +142,6 @@ local function makeLabel(text, parent, order)
     l.Parent = parent
     return l
 end
-
-local flyToggleState = false
-local noclipToggleState = false
-local flyToggleCallback = nil
-local noclipToggleCallback = nil
 
 local function makeToggle(labelText, order, callback)
     local frame = Instance.new("Frame")
@@ -201,14 +202,11 @@ local function makeToggle(labelText, order, callback)
         setState(not state)
     end)
 
-    -- Возвращаем функцию переключения для биндов
-    return frame, function()
-        setState(not state)
-    end
+    return frame, function() setState(not state) end
 end
 
--- === СЛАЙДЕР + ПОЛЕ ВВОДА ===
-local sliderFill, sliderThumb, sliderValLbl, speedInputBox
+-- === СЛАЙДЕР ===
+local speedInputBox
 
 local function makeSpeedControl(order)
     local SLIDER_MIN = 10
@@ -272,7 +270,6 @@ local function makeSpeedControl(order)
     fill.BorderSizePixel = 0
     fill.Parent = track
     Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
-    sliderFill = fill
 
     local thumb = Instance.new("Frame")
     thumb.Size = UDim2.new(0, 14, 0, 14)
@@ -282,7 +279,6 @@ local function makeSpeedControl(order)
     thumb.ZIndex = 2
     thumb.Parent = track
     Instance.new("UICorner", thumb).CornerRadius = UDim.new(1, 0)
-    sliderThumb = thumb
 
     local minLbl = Instance.new("TextLabel")
     minLbl.Size = UDim2.new(0, 30, 0, 14)
@@ -361,15 +357,10 @@ local function unfreezeChar()
     if not char then return end
     local hum = char:FindFirstChildOfClass("Humanoid")
     local hrp = char:FindFirstChild("HumanoidRootPart")
-    if hum then
-        hum.PlatformStand = false
-        hum.AutoRotate = true
-    end
+    if hum then hum.PlatformStand = false; hum.AutoRotate = true end
     if hrp then
         for _, v in pairs(hrp:GetChildren()) do
-            if v:IsA("BodyVelocity") or v:IsA("BodyGyro") then
-                v:Destroy()
-            end
+            if v:IsA("BodyVelocity") or v:IsA("BodyGyro") then v:Destroy() end
         end
     end
 end
@@ -409,25 +400,19 @@ local function disableFly()
     config.flying = false
     config.following = false
     config.targetPlayer = nil
-    task.delay(0.1, function()
-        unfreezeChar()
-    end)
+    task.delay(0.1, unfreezeChar)
 end
 
--- === НОУКЛИП ЛОГИКА ===
 RunService.Stepped:Connect(function()
     if not config.noclip then return end
     local char = localPlayer.Character
     if not char then return end
     for _, part in pairs(char:GetDescendants()) do
-        if part:IsA("BasePart") and part.CanCollide then
-            part.CanCollide = false
-        end
+        if part:IsA("BasePart") and part.CanCollide then part.CanCollide = false end
     end
 end)
 
--- === HEARTBEAT ===
-RunService.Heartbeat:Connect(function(dt)
+RunService.Heartbeat:Connect(function()
     if not config.flying then return end
     local char = localPlayer.Character
     if not char then return end
@@ -442,8 +427,7 @@ RunService.Heartbeat:Connect(function(dt)
             local diff = targetPos - hrp.Position
             local dist = diff.Magnitude
             if dist > config.followDistance then
-                local speed = math.clamp(dist * 3, 5, config.flySpeed * 2)
-                bodyVelocity.Velocity = diff.Unit * speed
+                bodyVelocity.Velocity = diff.Unit * math.clamp(dist * 3, 5, config.flySpeed * 2)
             else
                 bodyVelocity.Velocity = Vector3.zero
             end
@@ -465,7 +449,6 @@ end)
 
 -- === UI ЭЛЕМЕНТЫ ===
 
--- Приветствие
 local greetFrame = Instance.new("Frame")
 greetFrame.Size = UDim2.new(1, 0, 0, 36)
 greetFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
@@ -507,7 +490,6 @@ makeSpeedControl(4)
 
 makeLabel("— Преследование", content, 5)
 
--- Поле поиска игрока
 local searchFrame = Instance.new("Frame")
 searchFrame.Size = UDim2.new(1, 0, 0, 36)
 searchFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
@@ -540,7 +522,6 @@ searchBox.TextXAlignment = Enum.TextXAlignment.Left
 searchBox.ClearTextOnFocus = false
 searchBox.Parent = searchFrame
 
--- Список игроков
 local playersFrame = Instance.new("Frame")
 playersFrame.Size = UDim2.new(1, 0, 0, 120)
 playersFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
@@ -597,16 +578,12 @@ local function refreshPlayers()
 
                 btn.MouseButton1Click:Connect(function()
                     if selectedBtn then
-                        TweenService:Create(selectedBtn, TweenInfo.new(0.15), {
-                            BackgroundColor3 = Color3.fromRGB(45, 45, 65)
-                        }):Play()
+                        TweenService:Create(selectedBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(45, 45, 65)}):Play()
                     end
                     config.targetPlayer = p
                     config.following = true
                     if not config.flying then enableFly() end
-                    TweenService:Create(btn, TweenInfo.new(0.15), {
-                        BackgroundColor3 = Color3.fromRGB(100, 60, 220)
-                    }):Play()
+                    TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(100, 60, 220)}):Play()
                     selectedBtn = btn
                 end)
             end
@@ -619,16 +596,9 @@ searchBox:GetPropertyChangedSignal("Text"):Connect(function()
     searchQuery = searchBox.Text
     refreshPlayers()
 end)
-
 refreshPlayers()
 Players.PlayerAdded:Connect(refreshPlayers)
-Players.PlayerRemoving:Connect(function()
-    task.wait(0.1)
-    refreshPlayers()
-end)
-
--- Кнопка остановить преследование
-local stopFollowFunc
+Players.PlayerRemoving:Connect(function() task.wait(0.1) refreshPlayers() end)
 
 local stopBtn = Instance.new("TextButton")
 stopBtn.Size = UDim2.new(1, 0, 0, 32)
@@ -646,50 +616,57 @@ local function doStopFollow()
     config.following = false
     config.targetPlayer = nil
     if selectedBtn then
-        TweenService:Create(selectedBtn, TweenInfo.new(0.15), {
-            BackgroundColor3 = Color3.fromRGB(45, 45, 65)
-        }):Play()
+        TweenService:Create(selectedBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(45, 45, 65)}):Play()
         selectedBtn = nil
     end
-    if not config.flying then
-        task.delay(0.1, function() unfreezeChar() end)
-    end
+    if not config.flying then task.delay(0.1, unfreezeChar) end
 end
 
 stopBtn.MouseButton1Click:Connect(doStopFollow)
 
 -- ===============================
--- === СЕКЦИЯ БИНДОВ ===
+-- === СЕКЦИЯ БИНДОВ (ИЗМЕНЯЕМЫЕ) ===
 -- ===============================
 
 makeLabel("— Бинды", content, 9)
 
-local bindsFrame = Instance.new("Frame")
-bindsFrame.Size = UDim2.new(1, 0, 0, 110)
-bindsFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
-bindsFrame.BorderSizePixel = 0
-bindsFrame.LayoutOrder = 10
-bindsFrame.Parent = content
-Instance.new("UICorner", bindsFrame).CornerRadius = UDim.new(0, 8)
+-- Состояние ожидания клавиши
+local listeningFor = nil  -- "fly" | "noclip" | "unfollow" | nil
+local bindKeyLabels = {}  -- bindKey -> TextLabel кнопки
 
-local bindsLayout = Instance.new("UIListLayout")
-bindsLayout.SortOrder = Enum.SortOrder.LayoutOrder
-bindsLayout.Padding = UDim.new(0, 0)
-bindsLayout.Parent = bindsFrame
+local bindsContainer = Instance.new("Frame")
+bindsContainer.Size = UDim2.new(1, 0, 0, 118)
+bindsContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+bindsContainer.BorderSizePixel = 0
+bindsContainer.LayoutOrder = 10
+bindsContainer.Parent = content
+Instance.new("UICorner", bindsContainer).CornerRadius = UDim.new(0, 8)
 
-local function makeBind(icon, actionName, keyName, order)
+local bindsInnerLayout = Instance.new("UIListLayout")
+bindsInnerLayout.SortOrder = Enum.SortOrder.LayoutOrder
+bindsInnerLayout.Padding = UDim.new(0, 0)
+bindsInnerLayout.Parent = bindsContainer
+
+-- Данные строк биндов
+local bindRows = {
+    { key = "fly",      icon = "✈", label = "Полёт",                order = 1 },
+    { key = "noclip",   icon = "👻", label = "Ноуклип",              order = 2 },
+    { key = "unfollow", icon = "🚫", label = "Отменить преследование", order = 3 },
+}
+
+local function makeBindRow(data)
     local row = Instance.new("Frame")
-    row.Size = UDim2.new(1, 0, 0, 34)
+    row.Size = UDim2.new(1, 0, 0, 38)
     row.BackgroundTransparency = 1
     row.BorderSizePixel = 0
-    row.LayoutOrder = order
-    row.Parent = bindsFrame
+    row.LayoutOrder = data.order
+    row.Parent = bindsContainer
 
     local iconLbl = Instance.new("TextLabel")
     iconLbl.Size = UDim2.new(0, 24, 1, 0)
     iconLbl.Position = UDim2.new(0, 10, 0, 0)
     iconLbl.BackgroundTransparency = 1
-    iconLbl.Text = icon
+    iconLbl.Text = data.icon
     iconLbl.TextSize = 14
     iconLbl.Font = Enum.Font.Gotham
     iconLbl.TextColor3 = Color3.fromRGB(200, 200, 220)
@@ -697,47 +674,84 @@ local function makeBind(icon, actionName, keyName, order)
     iconLbl.Parent = row
 
     local nameLbl = Instance.new("TextLabel")
-    nameLbl.Size = UDim2.new(1, -100, 1, 0)
+    nameLbl.Size = UDim2.new(1, -110, 1, 0)
     nameLbl.Position = UDim2.new(0, 36, 0, 0)
     nameLbl.BackgroundTransparency = 1
-    nameLbl.Text = actionName
+    nameLbl.Text = data.label
     nameLbl.TextSize = 13
     nameLbl.Font = Enum.Font.Gotham
     nameLbl.TextColor3 = Color3.fromRGB(200, 200, 220)
     nameLbl.TextXAlignment = Enum.TextXAlignment.Left
     nameLbl.Parent = row
 
-    local keyFrame = Instance.new("Frame")
-    keyFrame.Size = UDim2.new(0, 44, 0, 22)
-    keyFrame.Position = UDim2.new(1, -54, 0.5, -11)
-    keyFrame.BackgroundColor3 = Color3.fromRGB(100, 60, 220)
-    keyFrame.BorderSizePixel = 0
-    keyFrame.Parent = row
-    Instance.new("UICorner", keyFrame).CornerRadius = UDim.new(0, 6)
+    -- Кнопка бинда
+    local keyBtn = Instance.new("TextButton")
+    keyBtn.Size = UDim2.new(0, 54, 0, 24)
+    keyBtn.Position = UDim2.new(1, -64, 0.5, -12)
+    keyBtn.BackgroundColor3 = Color3.fromRGB(100, 60, 220)
+    keyBtn.BorderSizePixel = 0
+    keyBtn.Text = keyName(binds[data.key])
+    keyBtn.TextSize = 12
+    keyBtn.Font = Enum.Font.GothamBold
+    keyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    keyBtn.Parent = row
+    Instance.new("UICorner", keyBtn).CornerRadius = UDim.new(0, 6)
 
-    local keyLbl = Instance.new("TextLabel")
-    keyLbl.Size = UDim2.new(1, 0, 1, 0)
-    keyLbl.BackgroundTransparency = 1
-    keyLbl.Text = keyName
-    keyLbl.TextSize = 12
-    keyLbl.Font = Enum.Font.GothamBold
-    keyLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
-    keyLbl.Parent = keyFrame
+    bindKeyLabels[data.key] = keyBtn
 
-    -- Разделитель (кроме последней строки)
-    if order < 3 then
-        local divider = Instance.new("Frame")
-        divider.Size = UDim2.new(1, -20, 0, 1)
-        divider.Position = UDim2.new(0, 10, 1, -1)
-        divider.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
-        divider.BorderSizePixel = 0
-        divider.Parent = row
+    keyBtn.MouseButton1Click:Connect(function()
+        if listeningFor == data.key then
+            -- Отмена прослушивания
+            listeningFor = nil
+            keyBtn.Text = keyName(binds[data.key])
+            TweenService:Create(keyBtn, TweenInfo.new(0.15), {
+                BackgroundColor3 = Color3.fromRGB(100, 60, 220)
+            }):Play()
+        else
+            -- Если другая кнопка слушает — сбросить её
+            if listeningFor then
+                local oldBtn = bindKeyLabels[listeningFor]
+                if oldBtn then
+                    oldBtn.Text = keyName(binds[listeningFor])
+                    TweenService:Create(oldBtn, TweenInfo.new(0.15), {
+                        BackgroundColor3 = Color3.fromRGB(100, 60, 220)
+                    }):Play()
+                end
+            end
+            listeningFor = data.key
+            keyBtn.Text = "..."
+            TweenService:Create(keyBtn, TweenInfo.new(0.15), {
+                BackgroundColor3 = Color3.fromRGB(220, 160, 30)
+            }):Play()
+        end
+    end)
+
+    -- Разделитель
+    if data.order < 3 then
+        local div = Instance.new("Frame")
+        div.Size = UDim2.new(1, -20, 0, 1)
+        div.Position = UDim2.new(0, 10, 1, -1)
+        div.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
+        div.BorderSizePixel = 0
+        div.Parent = row
     end
 end
 
-makeBind("✈", "Полёт", "F5", 1)
-makeBind("👻", "Ноуклип", "F6", 2)
-makeBind("🚫", "Отменить преследование", "F7", 3)
+for _, rd in ipairs(bindRows) do
+    makeBindRow(rd)
+end
+
+-- Подсказка под биндами
+local hintLbl = Instance.new("TextLabel")
+hintLbl.Size = UDim2.new(1, 0, 0, 18)
+hintLbl.BackgroundTransparency = 1
+hintLbl.Text = "Нажмите на клавишу, чтобы изменить бинд"
+hintLbl.TextColor3 = Color3.fromRGB(110, 110, 140)
+hintLbl.TextSize = 11
+hintLbl.Font = Enum.Font.Gotham
+hintLbl.TextXAlignment = Enum.TextXAlignment.Center
+hintLbl.LayoutOrder = 11
+hintLbl.Parent = content
 
 -- ===============================
 -- === ПОДПИСЬ DreamCompany ===
@@ -747,11 +761,10 @@ local creditsFrame = Instance.new("Frame")
 creditsFrame.Size = UDim2.new(1, 0, 0, 34)
 creditsFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 40)
 creditsFrame.BorderSizePixel = 0
-creditsFrame.LayoutOrder = 11
+creditsFrame.LayoutOrder = 12
 creditsFrame.Parent = content
 Instance.new("UICorner", creditsFrame).CornerRadius = UDim.new(0, 8)
 
--- Тонкая линия-акцент сверху
 local accentLine = Instance.new("Frame")
 accentLine.Size = UDim2.new(1, -20, 0, 2)
 accentLine.Position = UDim2.new(0, 10, 0, 0)
@@ -772,26 +785,58 @@ creditsLabel.TextXAlignment = Enum.TextXAlignment.Center
 creditsLabel.Parent = creditsFrame
 
 -- ===============================
--- === ОБРАБОТКА БИНДОВ (КЛАВИШИ) ===
+-- === ОБРАБОТКА КЛАВИШ ===
 -- ===============================
 
+-- Клавиши, которые НЕ назначаются (служебные)
+local blockedKeys = {
+    [Enum.KeyCode.Escape]    = true,
+    [Enum.KeyCode.Return]    = true,
+    [Enum.KeyCode.Tab]       = true,
+    [Enum.KeyCode.Backspace] = true,
+    [Enum.KeyCode.Delete]    = true,
+    [Enum.KeyCode.Unknown]   = true,
+}
+
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    -- Режим назначения бинда
+    if listeningFor then
+        local kc = input.KeyCode
+        if kc == Enum.KeyCode.Escape then
+            -- Escape — отменить назначение
+            local btn = bindKeyLabels[listeningFor]
+            if btn then
+                btn.Text = keyName(binds[listeningFor])
+                TweenService:Create(btn, TweenInfo.new(0.15), {
+                    BackgroundColor3 = Color3.fromRGB(100, 60, 220)
+                }):Play()
+            end
+            listeningFor = nil
+        elseif not blockedKeys[kc] and kc ~= Enum.KeyCode.Unknown then
+            -- Назначаем новый бинд
+            binds[listeningFor] = kc
+            local btn = bindKeyLabels[listeningFor]
+            if btn then
+                btn.Text = keyName(kc)
+                TweenService:Create(btn, TweenInfo.new(0.15), {
+                    BackgroundColor3 = Color3.fromRGB(100, 60, 220)
+                }):Play()
+            end
+            listeningFor = nil
+        end
+        return
+    end
+
     if gameProcessed then return end
 
-    -- F5 — Полёт
-    if input.KeyCode == Enum.KeyCode.F5 then
+    -- Обычные бинды
+    if input.KeyCode == binds.fly then
         flyToggle()
-    end
-
-    -- F6 — Ноуклип
-    if input.KeyCode == Enum.KeyCode.F6 then
+    elseif input.KeyCode == binds.noclip then
         noclipToggle()
-    end
-
-    -- F7 — Отменить преследование
-    if input.KeyCode == Enum.KeyCode.F7 then
+    elseif input.KeyCode == binds.unfollow then
         doStopFollow()
     end
 end)
 
-print("💤 DreamCheats загружен! | F5 - Полёт | F6 - Ноуклип | F7 - Отменить преследование")
+print("💤 DreamCheats загружен! | Бинды можно изменить в меню")
