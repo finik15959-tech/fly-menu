@@ -735,15 +735,41 @@ end)
 -- ===============================
 
 local espEnabled = false
-local espObjects = {}  -- [player] = { box, nameLabel, highlight }
+local espObjects = {}  -- [player] = { box={top,bot,left,right,topL,topR,botL,botR}, nameTag }
 
 local camera = workspace.CurrentCamera
+
+-- Цвет ESP
+local ESP_COLOR = Color3.fromRGB(255, 50, 50)
+local ESP_NAME_COLOR = Color3.fromRGB(255, 255, 255)
+
+local function newLine()
+    local l = Drawing.new("Line")
+    l.Thickness = 1.5
+    l.Color = ESP_COLOR
+    l.Transparency = 1
+    l.Visible = false
+    return l
+end
+
+local function newText()
+    local t = Drawing.new("Text")
+    t.Size = 14
+    t.Color = ESP_NAME_COLOR
+    t.Outline = true
+    t.OutlineColor = Color3.fromRGB(0, 0, 0)
+    t.Center = true
+    t.Visible = false
+    return t
+end
 
 local function removeESP(player)
     local obj = espObjects[player]
     if obj then
-        if obj.highlight and obj.highlight.Parent then obj.highlight:Destroy() end
-        if obj.billboardGui and obj.billboardGui.Parent then obj.billboardGui:Destroy() end
+        for _, line in pairs(obj.box) do
+            line:Remove()
+        end
+        obj.nameTag:Remove()
         espObjects[player] = nil
     end
 end
@@ -752,48 +778,96 @@ local function createESP(player)
     if player == localPlayer then return end
     removeESP(player)
 
-    local char = player.Character
-    if not char then return end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
+    -- 4 линии бокса + ник
+    local box = {
+        top    = newLine(),
+        bot    = newLine(),
+        left   = newLine(),
+        right  = newLine(),
+    }
+    local nameTag = newText()
 
-    -- Highlight (объёмная подсветка — встроенная в Roblox)
-    local hl = Instance.new("Highlight")
-    hl.Adornee = char
-    hl.FillColor = Color3.fromRGB(255, 50, 50)
-    hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-    hl.FillTransparency = 0.6
-    hl.OutlineTransparency = 0
-    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    hl.Parent = char
-
-    -- BillboardGui с ником над головой
-    local bb = Instance.new("BillboardGui")
-    bb.Size = UDim2.new(0, 120, 0, 30)
-    bb.StudsOffset = Vector3.new(0, 3.2, 0)
-    bb.AlwaysOnTop = true
-    bb.Adornee = hrp
-    bb.Parent = hrp
-
-    local nameLabel = Instance.new("TextLabel")
-    nameLabel.Size = UDim2.new(1, 0, 1, 0)
-    nameLabel.BackgroundTransparency = 1
-    nameLabel.Text = player.Name
-    nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    nameLabel.TextStrokeTransparency = 0
-    nameLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-    nameLabel.TextSize = 14
-    nameLabel.Font = Enum.Font.GothamBold
-    nameLabel.Parent = bb
-
-    espObjects[player] = { highlight = hl, billboardGui = bb }
+    espObjects[player] = { box = box, nameTag = nameTag }
 end
+
+-- Обновление позиций ESP каждый кадр
+RunService.RenderStepped:Connect(function()
+    if not espEnabled then return end
+
+    for player, obj in pairs(espObjects) do
+        local char = player.Character
+        local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+        local hum  = char and char:FindFirstChildOfClass("Humanoid")
+
+        if not hrp or not hum or hum.Health <= 0 then
+            -- Скрыть если нет персонажа
+            for _, l in pairs(obj.box) do l.Visible = false end
+            obj.nameTag.Visible = false
+            continue
+        end
+
+        -- Получаем bounding box персонажа через WorldToViewportPoint
+        local rootPos = hrp.Position
+        local _, onScreen = camera:WorldToViewportPoint(rootPos)
+
+        if not onScreen then
+            for _, l in pairs(obj.box) do l.Visible = false end
+            obj.nameTag.Visible = false
+            continue
+        end
+
+        -- Верх (голова) и низ (ноги)
+        local headPos   = rootPos + Vector3.new(0, 3.2, 0)
+        local feetPos   = rootPos + Vector3.new(0, -3.2, 0)
+
+        local headSP, headVis = camera:WorldToViewportPoint(headPos)
+        local feetSP, feetVis = camera:WorldToViewportPoint(feetPos)
+
+        if not headVis then
+            for _, l in pairs(obj.box) do l.Visible = false end
+            obj.nameTag.Visible = false
+            continue
+        end
+
+        -- Размер бокса
+        local boxHeight = math.abs(headSP.Y - feetSP.Y)
+        local boxWidth  = boxHeight * 0.45
+
+        local x = headSP.X
+        local yTop = headSP.Y
+        local yBot = feetSP.Y
+
+        local left  = x - boxWidth
+        local right = x + boxWidth
+
+        -- Рисуем 4 стороны
+        obj.box.top.From    = Vector2.new(left,  yTop)
+        obj.box.top.To      = Vector2.new(right, yTop)
+        obj.box.top.Visible = true
+
+        obj.box.bot.From    = Vector2.new(left,  yBot)
+        obj.box.bot.To      = Vector2.new(right, yBot)
+        obj.box.bot.Visible = true
+
+        obj.box.left.From   = Vector2.new(left, yTop)
+        obj.box.left.To     = Vector2.new(left, yBot)
+        obj.box.left.Visible = true
+
+        obj.box.right.From  = Vector2.new(right, yTop)
+        obj.box.right.To    = Vector2.new(right, yBot)
+        obj.box.right.Visible = true
+
+        -- Ник над боксом
+        obj.nameTag.Text     = player.Name
+        obj.nameTag.Position = Vector2.new(x, yTop - 16)
+        obj.nameTag.Visible  = true
+    end
+end)
 
 local function enableESP()
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= localPlayer then
             createESP(p)
-            -- Перезапускать ESP при смене персонажа
             p.CharacterAdded:Connect(function()
                 task.wait(0.5)
                 if espEnabled then createESP(p) end
