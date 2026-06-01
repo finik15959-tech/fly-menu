@@ -508,14 +508,17 @@ end
 local espEnabled = false
 local espFolder = nil
 
+-- Папка для каждого игрока хранится отдельно: espFolder["имя"] = Folder
+local espPlayerFolders = {}
+
 local function removeESP(player)
-    if espFolder then
-        local obj = espFolder:FindFirstChild("ESP_" .. player.Name)
-        if obj then obj:Destroy() end
-        local bb = espFolder:FindFirstChild("BB_" .. player.Name)
-        if bb then bb:Destroy() end
-    end
+    local pf = espPlayerFolders[player.Name]
+    if pf and pf.Parent then pf:Destroy() end
+    espPlayerFolders[player.Name] = nil
 end
+
+-- Части тела, которые пропускаем (HRP невидим, аксессуары — Handle)
+local SKIP_PARTS = { HumanoidRootPart = true }
 
 local function createESP(player)
     if player == localPlayer then return end
@@ -527,15 +530,41 @@ local function createESP(player)
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
-    local selBox = Instance.new("SelectionBox")
-    selBox.Name = "ESP_" .. player.Name
-    selBox.Adornee = char
-    selBox.Color3 = Color3.fromRGB(255, 50, 50)
-    selBox.LineThickness = 0.05
-    selBox.SurfaceTransparency = 0.85
-    selBox.SurfaceColor3 = Color3.fromRGB(255, 50, 50)
-    selBox.Parent = espFolder
+    -- Папка под конкретного игрока внутри общей ESP папки
+    local pFolder = Instance.new("Folder")
+    pFolder.Name = "PESP_" .. player.Name
+    pFolder.Parent = espFolder
+    espPlayerFolders[player.Name] = pFolder
 
+    -- SelectionBox на каждую BasePart (тело + аксессуары)
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") and not SKIP_PARTS[part.Name] then
+            local sb = Instance.new("SelectionBox")
+            sb.Adornee = part
+            sb.Color3 = Color3.fromRGB(255, 50, 50)
+            sb.LineThickness = 0.03
+            sb.SurfaceTransparency = 0.8
+            sb.SurfaceColor3 = Color3.fromRGB(255, 50, 50)
+            sb.Parent = pFolder
+        end
+    end
+
+    -- Отслеживаем добавление новых частей (аксессуары надеваются с задержкой)
+    char.DescendantAdded:Connect(function(desc)
+        if not espEnabled then return end
+        if not pFolder.Parent then return end
+        if desc:IsA("BasePart") and not SKIP_PARTS[desc.Name] then
+            local sb = Instance.new("SelectionBox")
+            sb.Adornee = desc
+            sb.Color3 = Color3.fromRGB(255, 50, 50)
+            sb.LineThickness = 0.03
+            sb.SurfaceTransparency = 0.8
+            sb.SurfaceColor3 = Color3.fromRGB(255, 50, 50)
+            sb.Parent = pFolder
+        end
+    end)
+
+    -- Ник над головой
     local bb = Instance.new("BillboardGui")
     bb.Name = "BB_" .. player.Name
     bb.Adornee = hrp
@@ -543,7 +572,7 @@ local function createESP(player)
     bb.StudsOffset = Vector3.new(0, 3.5, 0)
     bb.AlwaysOnTop = true
     bb.ResetOnSpawn = false
-    bb.Parent = espFolder
+    bb.Parent = pFolder
 
     local nameLabel = Instance.new("TextLabel")
     nameLabel.Size = UDim2.new(1, 0, 1, 0)
@@ -590,6 +619,9 @@ local function disableESP()
         espFolder:Destroy()
     end
     espFolder = nil
+    for k in pairs(espPlayerFolders) do
+        espPlayerFolders[k] = nil
+    end
 end
 
 -- === UI ЭЛЕМЕНТЫ ===
@@ -1049,7 +1081,7 @@ versionFrame.Parent = content
 local versionLabel = Instance.new("TextLabel")
 versionLabel.Size = UDim2.new(1, 0, 1, 0)
 versionLabel.BackgroundTransparency = 1
-versionLabel.Text = "v1.2.5"  -- fix: ESP declare order + menu bind gameProcessed
+versionLabel.Text = "v1.2.6"  -- fix: per-part ESP SelectionBox (fits skin shape)
 versionLabel.TextColor3 = Color3.fromRGB(100, 100, 130)
 versionLabel.TextSize = 11
 versionLabel.Font = Enum.Font.GothamBold
@@ -1142,4 +1174,4 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
-print("💤 DreamCheats v1.2.5 загружен! | Бинды можно изменить в меню")
+print("💤 DreamCheats v1.2.6 загружен! | Бинды можно изменить в меню")
