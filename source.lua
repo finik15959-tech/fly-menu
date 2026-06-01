@@ -37,23 +37,31 @@ end
 
 -- === НАСТРОЙКИ ===
 local config = {
-    flySpeed = 50,
-    followDistance = 5,
-    followHeight = 3,
-    flying = false,
-    following = false,
-    noclip = false,
-    targetPlayer = nil
+    flySpeed           = 50,
+    walkSpeed          = 16,
+    jumpHeight         = 7,
+    followDistance     = 5,
+    followHeight       = 3,
+    flying             = false,
+    following          = false,
+    noclip             = false,
+    targetPlayer       = nil,
+    walkSpeedEnabled   = false,
+    jumpHeightEnabled  = false,
 }
 
 -- === БИНДЫ (изменяемые) ===
 local binds = {
-    fly      = Enum.KeyCode.F5,
-    noclip   = Enum.KeyCode.F6,
-    unfollow = Enum.KeyCode.F7,
-    esp      = Enum.KeyCode.F8,
-    menu     = Enum.KeyCode.F9,
+    fly        = Enum.KeyCode.F5,
+    noclip     = Enum.KeyCode.F6,
+    unfollow   = Enum.KeyCode.F7,
+    esp        = Enum.KeyCode.F8,
+    menu       = Enum.KeyCode.F9,
+    walkSpeed  = Enum.KeyCode.F1,
+    jumpHeight = Enum.KeyCode.F2,
 }
+
+-- Шаги изменения значений по бинду (не используются, оставлены для совместимости)
 
 local function keyName(kc)
     local s = tostring(kc)
@@ -235,20 +243,23 @@ local function makeToggle(labelText, order, callback)
     return frame, function() setState(not state) end
 end
 
--- === СЛАЙДЕР ===
+-- === СЛАЙДЕРЫ ===
 local speedInputBox
 local sliderFill, sliderThumb
 
-local function makeSpeedControl(order)
-    local SLIDER_MIN = 10
-    local SLIDER_MAX = 200
-    local INPUT_MAX = 500
+-- Универсальная функция слайдера
+-- params: { label, order, sliderMin, sliderMax, inputMax, initVal, accentColor, onChanged }
+-- возвращает { inputBox, fill, thumb, updateVisual }
+local function makeSliderControl(params)
+    local SLIDER_MIN = params.sliderMin
+    local SLIDER_MAX = params.sliderMax
+    local INPUT_MAX  = params.inputMax
 
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(1, 0, 0, 80)
     frame.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
     frame.BorderSizePixel = 0
-    frame.LayoutOrder = order
+    frame.LayoutOrder = params.order
     frame.Parent = content
     Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
 
@@ -256,7 +267,7 @@ local function makeSpeedControl(order)
     lbl.Size = UDim2.new(1, -12, 0, 22)
     lbl.Position = UDim2.new(0, 12, 0, 6)
     lbl.BackgroundTransparency = 1
-    lbl.Text = "Скорость полёта"
+    lbl.Text = params.label
     lbl.TextColor3 = Color3.fromRGB(220, 220, 240)
     lbl.TextSize = 14
     lbl.Font = Enum.Font.Gotham
@@ -271,20 +282,20 @@ local function makeSpeedControl(order)
     inputFrame.Parent = frame
     Instance.new("UICorner", inputFrame).CornerRadius = UDim.new(0, 6)
 
-    speedInputBox = Instance.new("TextBox")
-    speedInputBox.Size = UDim2.new(1, -8, 1, 0)
-    speedInputBox.Position = UDim2.new(0, 4, 0, 0)
-    speedInputBox.BackgroundTransparency = 1
-    speedInputBox.BorderSizePixel = 0
-    speedInputBox.Text = tostring(config.flySpeed)
-    speedInputBox.PlaceholderText = "10-500"
-    speedInputBox.PlaceholderColor3 = Color3.fromRGB(100, 100, 120)
-    speedInputBox.TextColor3 = Color3.fromRGB(100, 60, 220)
-    speedInputBox.TextSize = 13
-    speedInputBox.Font = Enum.Font.GothamBold
-    speedInputBox.TextXAlignment = Enum.TextXAlignment.Center
-    speedInputBox.ClearTextOnFocus = false
-    speedInputBox.Parent = inputFrame
+    local inputBox = Instance.new("TextBox")
+    inputBox.Size = UDim2.new(1, -8, 1, 0)
+    inputBox.Position = UDim2.new(0, 4, 0, 0)
+    inputBox.BackgroundTransparency = 1
+    inputBox.BorderSizePixel = 0
+    inputBox.Text = tostring(params.initVal)
+    inputBox.PlaceholderText = tostring(SLIDER_MIN).."-"..tostring(INPUT_MAX)
+    inputBox.PlaceholderColor3 = Color3.fromRGB(100, 100, 120)
+    inputBox.TextColor3 = params.accentColor
+    inputBox.TextSize = 13
+    inputBox.Font = Enum.Font.GothamBold
+    inputBox.TextXAlignment = Enum.TextXAlignment.Center
+    inputBox.ClearTextOnFocus = false
+    inputBox.Parent = inputFrame
 
     local track = Instance.new("Frame")
     track.Size = UDim2.new(1, -24, 0, 6)
@@ -295,23 +306,21 @@ local function makeSpeedControl(order)
     Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
 
     local fill = Instance.new("Frame")
-    local initRel = (config.flySpeed - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN)
-    fill.Size = UDim2.new(math.clamp(initRel, 0, 1), 0, 1, 0)
-    fill.BackgroundColor3 = Color3.fromRGB(100, 60, 220)
+    local initRel = math.clamp((params.initVal - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN), 0, 1)
+    fill.Size = UDim2.new(initRel, 0, 1, 0)
+    fill.BackgroundColor3 = params.accentColor
     fill.BorderSizePixel = 0
     fill.Parent = track
     Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
 
     local thumb = Instance.new("Frame")
     thumb.Size = UDim2.new(0, 14, 0, 14)
-    thumb.Position = UDim2.new(math.clamp(initRel, 0, 1), -7, 0.5, -7)
+    thumb.Position = UDim2.new(initRel, -7, 0.5, -7)
     thumb.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     thumb.BorderSizePixel = 0
     thumb.ZIndex = 2
     thumb.Parent = track
     Instance.new("UICorner", thumb).CornerRadius = UDim.new(1, 0)
-    sliderFill = fill
-    sliderThumb = thumb
 
     local minLbl = Instance.new("TextLabel")
     minLbl.Size = UDim2.new(0, 30, 0, 14)
@@ -335,22 +344,22 @@ local function makeSpeedControl(order)
     maxLbl.TextXAlignment = Enum.TextXAlignment.Right
     maxLbl.Parent = frame
 
-    local function updateSliderVisual(val)
+    local function updateVisual(val)
         local rel = math.clamp((val - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN), 0, 1)
         fill.Size = UDim2.new(rel, 0, 1, 0)
         thumb.Position = UDim2.new(rel, -7, 0.5, -7)
     end
 
     local sliding = false
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 0, 30)
-    btn.Position = UDim2.new(0, 0, 0, -12)
-    btn.BackgroundTransparency = 1
-    btn.Text = ""
-    btn.ZIndex = 3
-    btn.Parent = track
+    local trackBtn = Instance.new("TextButton")
+    trackBtn.Size = UDim2.new(1, 0, 0, 30)
+    trackBtn.Position = UDim2.new(0, 0, 0, -12)
+    trackBtn.BackgroundTransparency = 1
+    trackBtn.Text = ""
+    trackBtn.ZIndex = 3
+    trackBtn.Parent = track
 
-    btn.InputBegan:Connect(function(i)
+    trackBtn.InputBegan:Connect(function(i)
         if i.UserInputType == Enum.UserInputType.MouseButton1 then sliding = true end
     end)
     UserInputService.InputEnded:Connect(function(i)
@@ -362,24 +371,48 @@ local function makeSpeedControl(order)
             local trackWidth = track.AbsoluteSize.X
             local rel = math.clamp((i.Position.X - trackPos) / trackWidth, 0, 1)
             local val = math.floor(SLIDER_MIN + (SLIDER_MAX - SLIDER_MIN) * rel)
-            config.flySpeed = val
-            speedInputBox.Text = tostring(val)
+            inputBox.Text = tostring(val)
             fill.Size = UDim2.new(rel, 0, 1, 0)
             thumb.Position = UDim2.new(rel, -7, 0.5, -7)
+            params.onChanged(val)
         end
     end)
 
-    speedInputBox.FocusLost:Connect(function()
-        local val = tonumber(speedInputBox.Text)
+    inputBox.FocusLost:Connect(function()
+        local val = tonumber(inputBox.Text)
         if val then
             val = math.clamp(math.floor(val), 1, INPUT_MAX)
-            config.flySpeed = val
-            speedInputBox.Text = tostring(val)
-            updateSliderVisual(val)
+            inputBox.Text = tostring(val)
+            updateVisual(val)
+            params.onChanged(val)
         else
-            speedInputBox.Text = tostring(config.flySpeed)
+            inputBox.Text = tostring(params.initVal)
         end
     end)
+
+    return { inputBox = inputBox, fill = fill, thumb = thumb, updateVisual = updateVisual }
+end
+
+local function makeSpeedControl(order)
+    local SLIDER_MIN = 10
+    local SLIDER_MAX = 200
+    local INPUT_MAX = 500
+
+    local s = makeSliderControl({
+        label      = "Скорость полёта",
+        order      = order,
+        sliderMin  = SLIDER_MIN,
+        sliderMax  = SLIDER_MAX,
+        inputMax   = INPUT_MAX,
+        initVal    = config.flySpeed,
+        accentColor = Color3.fromRGB(100, 60, 220),
+        onChanged  = function(val)
+            config.flySpeed = val
+        end,
+    })
+    speedInputBox = s.inputBox
+    sliderFill    = s.fill
+    sliderThumb   = s.thumb
 end
 
 -- === ПОЛЁТ ЛОГИКА ===
@@ -650,13 +683,69 @@ espToggle = _espFn
 
 makeSpeedControl(5)
 
-makeLabel("— Преследование", content, 5)
+-- WalkSpeed слайдер
+do
+    local walkInputBox, walkFill, walkThumb, walkUpdateVisual
+    local s = makeSliderControl({
+        label      = "Скорость ходьбы",
+        order      = 6,
+        sliderMin  = 8,
+        sliderMax  = 100,
+        inputMax   = 300,
+        initVal    = config.walkSpeed,
+        accentColor = Color3.fromRGB(60, 180, 120),
+        onChanged  = function(val)
+            config.walkSpeed = val
+            local char = localPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if hum then hum.WalkSpeed = val end
+        end,
+    })
+    walkInputBox = s.inputBox
+    -- Применяем при респауне
+    localPlayer.CharacterAdded:Connect(function(char)
+        local hum = char:WaitForChild("Humanoid", 5)
+        if hum then hum.WalkSpeed = config.walkSpeed end
+    end)
+end
+
+-- JumpHeight слайдер
+do
+    local s = makeSliderControl({
+        label      = "Высота прыжка",
+        order      = 7,
+        sliderMin  = 0,
+        sliderMax  = 100,
+        inputMax   = 300,
+        initVal    = config.jumpHeight,
+        accentColor = Color3.fromRGB(220, 140, 40),
+        onChanged  = function(val)
+            config.jumpHeight = val
+            local char = localPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum.JumpHeight = val
+                hum.JumpPower  = val  -- совместимость с разными играми
+            end
+        end,
+    })
+    -- Применяем при респауне
+    localPlayer.CharacterAdded:Connect(function(char)
+        local hum = char:WaitForChild("Humanoid", 5)
+        if hum then
+            hum.JumpHeight = config.jumpHeight
+            hum.JumpPower  = config.jumpHeight
+        end
+    end)
+end
+
+makeLabel("— Преследование", content, 8)
 
 local searchFrame = Instance.new("Frame")
 searchFrame.Size = UDim2.new(1, 0, 0, 36)
 searchFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
 searchFrame.BorderSizePixel = 0
-searchFrame.LayoutOrder = 6
+searchFrame.LayoutOrder = 9
 searchFrame.Parent = content
 Instance.new("UICorner", searchFrame).CornerRadius = UDim.new(0, 8)
 
@@ -688,7 +777,7 @@ local playersFrame = Instance.new("Frame")
 playersFrame.Size = UDim2.new(1, 0, 0, 120)
 playersFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
 playersFrame.BorderSizePixel = 0
-playersFrame.LayoutOrder = 7
+playersFrame.LayoutOrder = 10
 playersFrame.Parent = content
 Instance.new("UICorner", playersFrame).CornerRadius = UDim.new(0, 8)
 
@@ -770,7 +859,7 @@ stopBtn.Text = "Остановить преследование"
 stopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 stopBtn.TextSize = 13
 stopBtn.Font = Enum.Font.GothamBold
-stopBtn.LayoutOrder = 8
+stopBtn.LayoutOrder = 11
 stopBtn.Parent = content
 Instance.new("UICorner", stopBtn).CornerRadius = UDim.new(0, 8)
 
@@ -796,7 +885,7 @@ local listeningFor = nil
 local bindKeyLabels = {}
 
 local bindsContainer = Instance.new("Frame")
-bindsContainer.Size = UDim2.new(1, 0, 0, 196)
+bindsContainer.Size = UDim2.new(1, 0, 0, 272)
 bindsContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
 bindsContainer.BorderSizePixel = 0
 bindsContainer.LayoutOrder = 10
@@ -809,11 +898,13 @@ bindsInnerLayout.Padding = UDim.new(0, 0)
 bindsInnerLayout.Parent = bindsContainer
 
 local bindRows = {
-    { key = "fly",      icon = "✈",  label = "Полёт",                 order = 1 },
-    { key = "noclip",   icon = "👻", label = "Ноуклип",               order = 2 },
-    { key = "unfollow", icon = "🚫", label = "Отменить преследование", order = 3 },
-    { key = "esp",      icon = "👁",  label = "ESP",                   order = 4 },
-    { key = "menu",     icon = "📋", label = "Открыть/закрыть меню",  order = 5 },
+    { key = "fly",        icon = "✈",  label = "Полёт",                            order = 1 },
+    { key = "noclip",     icon = "👻", label = "Ноуклип",                          order = 2 },
+    { key = "unfollow",   icon = "🚫", label = "Отменить преследование",            order = 3 },
+    { key = "esp",        icon = "👁",  label = "ESP",                              order = 4 },
+    { key = "menu",       icon = "📋", label = "Открыть/закрыть меню",             order = 5 },
+    { key = "walkSpeed",  icon = "🏃", label = "WalkSpeed вкл/выкл",  order = 6 },
+    { key = "jumpHeight", icon = "⬆",  label = "JumpHeight вкл/выкл", order = 7 },
 }
 
 local function makeBindRow(data)
@@ -885,7 +976,7 @@ local function makeBindRow(data)
         end
     end)
 
-    if data.order < 5 then
+    if data.order < #bindRows then
         local div = Instance.new("Frame")
         div.Size = UDim2.new(1, -20, 0, 1)
         div.Position = UDim2.new(0, 10, 1, -1)
@@ -968,12 +1059,14 @@ Instance.new("UICorner", loadBtn).CornerRadius = UDim.new(0, 8)
 
 local function serializeSettings()
     return {
-        flySpeed     = config.flySpeed,
-        bindFly      = tostring(binds.fly),
-        bindNoclip   = tostring(binds.noclip),
-        bindUnfollow = tostring(binds.unfollow),
-        bindEsp      = tostring(binds.esp),
-        bindMenu     = tostring(binds.menu),
+        flySpeed       = config.flySpeed,
+        bindFly        = tostring(binds.fly),
+        bindNoclip     = tostring(binds.noclip),
+        bindUnfollow   = tostring(binds.unfollow),
+        bindEsp        = tostring(binds.esp),
+        bindMenu       = tostring(binds.menu),
+        bindWalkSpeed  = tostring(binds.walkSpeed),
+        bindJumpHeight = tostring(binds.jumpHeight),
     }
 end
 
@@ -1018,12 +1111,33 @@ local function applyLoadedSettings()
         end
     end
 
+    local ws = tonumber(result.walkSpeed)
+    if ws then
+        config.walkSpeed = math.clamp(math.floor(ws), 1, 300)
+        local char = localPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then hum.WalkSpeed = config.walkSpeed end
+    end
+
+    local jh = tonumber(result.jumpHeight)
+    if jh then
+        config.jumpHeight = math.clamp(math.floor(jh), 0, 300)
+        local char = localPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.JumpHeight = config.jumpHeight
+            hum.JumpPower  = config.jumpHeight
+        end
+    end
+
     local bindFields = {
-        {field = "bindFly",      key = "fly"},
-        {field = "bindNoclip",   key = "noclip"},
-        {field = "bindUnfollow", key = "unfollow"},
-        {field = "bindEsp",      key = "esp"},
-        {field = "bindMenu",     key = "menu"},
+        {field = "bindFly",        key = "fly"},
+        {field = "bindNoclip",     key = "noclip"},
+        {field = "bindUnfollow",   key = "unfollow"},
+        {field = "bindEsp",        key = "esp"},
+        {field = "bindMenu",       key = "menu"},
+        {field = "bindWalkSpeed",  key = "walkSpeed"},
+        {field = "bindJumpHeight", key = "jumpHeight"},
     }
     for _, b in ipairs(bindFields) do
         local kc = toKeyCode(result[b.field])
@@ -1059,7 +1173,7 @@ versionFrame.Parent = content
 local versionLabel = Instance.new("TextLabel")
 versionLabel.Size = UDim2.new(1, 0, 1, 0)
 versionLabel.BackgroundTransparency = 1
-versionLabel.Text = "v1.3.0"  -- fix: unfollow/esp binds work during flight
+versionLabel.Text = "v1.5.0"  -- feat: WalkSpeed + JumpHeight binds
 versionLabel.TextColor3 = Color3.fromRGB(100, 100, 130)
 versionLabel.TextSize = 11
 versionLabel.Font = Enum.Font.GothamBold
@@ -1153,7 +1267,22 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         flyToggle()
     elseif input.KeyCode == binds.noclip then
         noclipToggle()
+    elseif input.KeyCode == binds.walkSpeed then
+        config.walkSpeedEnabled = not config.walkSpeedEnabled
+        local char = localPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.WalkSpeed = config.walkSpeedEnabled and config.walkSpeed or 16
+        end
+    elseif input.KeyCode == binds.jumpHeight then
+        config.jumpHeightEnabled = not config.jumpHeightEnabled
+        local char = localPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.JumpHeight = config.jumpHeightEnabled and config.jumpHeight or 7
+            hum.JumpPower  = config.jumpHeightEnabled and config.jumpHeight or 7
+        end
     end
 end)
 
-print("💤 DreamCheats v1.3.0 загружен! | Бинды можно изменить в меню")
+print("💤 DreamCheats v1.5.0 загружен! | Бинды можно изменить в меню | WalkSpeed: F1 | JumpHeight: F2 (Shift = уменьшить)")
