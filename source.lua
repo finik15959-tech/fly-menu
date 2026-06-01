@@ -560,7 +560,7 @@ greetLabel.Font = Enum.Font.GothamBold
 greetLabel.TextXAlignment = Enum.TextXAlignment.Left
 greetLabel.Parent = greetFrame
 
-makeLabel("— Полёт", content, 1)
+makeLabel("— Функционал", content, 1)
 
 local _, flyToggle = makeToggle("Включить полёт", 2, function(state)
     if state then enableFly() else disableFly() end
@@ -727,41 +727,17 @@ stopBtn.MouseButton1Click:Connect(doStopFollow)
 -- ===============================
 
 local espEnabled = false
-local espObjects = {}  -- [player] = { box={top,bot,left,right,topL,topR,botL,botR}, nameTag }
-
-local camera = workspace.CurrentCamera
-
--- Цвет ESP
-local ESP_COLOR = Color3.fromRGB(255, 50, 50)
-local ESP_NAME_COLOR = Color3.fromRGB(255, 255, 255)
-
-local function newLine()
-    local l = Drawing.new("Line")
-    l.Thickness = 1.5
-    l.Color = ESP_COLOR
-    l.Transparency = 1
-    l.Visible = false
-    return l
-end
-
-local function newText()
-    local t = Drawing.new("Text")
-    t.Size = 14
-    t.Color = ESP_NAME_COLOR
-    t.Outline = true
-    t.OutlineColor = Color3.fromRGB(0, 0, 0)
-    t.Center = true
-    t.Visible = false
-    return t
-end
+local espObjects = {}  -- [player] = { selectionBox, billboardGui }
 
 local function removeESP(player)
     local obj = espObjects[player]
     if obj then
-        for _, line in pairs(obj.box) do
-            line:Remove()
+        if obj.selectionBox and obj.selectionBox.Parent then
+            obj.selectionBox:Destroy()
         end
-        obj.nameTag:Remove()
+        if obj.billboardGui and obj.billboardGui.Parent then
+            obj.billboardGui:Destroy()
+        end
         espObjects[player] = nil
     end
 end
@@ -770,91 +746,42 @@ local function createESP(player)
     if player == localPlayer then return end
     removeESP(player)
 
-    -- 4 линии бокса + ник
-    local box = {
-        top    = newLine(),
-        bot    = newLine(),
-        left   = newLine(),
-        right  = newLine(),
-    }
-    local nameTag = newText()
+    local char = player.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
 
-    espObjects[player] = { box = box, nameTag = nameTag }
+    -- SelectionBox — рисует бокс вокруг модели, виден сквозь стены
+    local selBox = Instance.new("SelectionBox")
+    selBox.Adornee = char
+    selBox.Color3 = Color3.fromRGB(255, 50, 50)
+    selBox.LineThickness = 0.05
+    selBox.SurfaceTransparency = 0.8
+    selBox.SurfaceColor3 = Color3.fromRGB(255, 50, 50)
+    selBox.Parent = workspace
+
+    -- BillboardGui — ник над головой
+    local bb = Instance.new("BillboardGui")
+    bb.Adornee = hrp
+    bb.Size = UDim2.new(0, 100, 0, 25)
+    bb.StudsOffset = Vector3.new(0, 3.5, 0)
+    bb.AlwaysOnTop = true
+    bb.ResetOnSpawn = false
+    bb.Parent = workspace
+
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Size = UDim2.new(1, 0, 1, 0)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = player.Name
+    nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    nameLabel.TextStrokeTransparency = 0
+    nameLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    nameLabel.TextSize = 13
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.Parent = bb
+
+    espObjects[player] = { selectionBox = selBox, billboardGui = bb }
 end
-
--- Обновление позиций ESP каждый кадр
-RunService.RenderStepped:Connect(function()
-    if not espEnabled then return end
-
-    for player, obj in pairs(espObjects) do
-        local char = player.Character
-        local hrp  = char and char:FindFirstChild("HumanoidRootPart")
-        local hum  = char and char:FindFirstChildOfClass("Humanoid")
-
-        if not hrp or not hum or hum.Health <= 0 then
-            -- Скрыть если нет персонажа
-            for _, l in pairs(obj.box) do l.Visible = false end
-            obj.nameTag.Visible = false
-            continue
-        end
-
-        -- Получаем bounding box персонажа через WorldToViewportPoint
-        local rootPos = hrp.Position
-        local _, onScreen = camera:WorldToViewportPoint(rootPos)
-
-        if not onScreen then
-            for _, l in pairs(obj.box) do l.Visible = false end
-            obj.nameTag.Visible = false
-            continue
-        end
-
-        -- Верх (голова) и низ (ноги)
-        local headPos   = rootPos + Vector3.new(0, 3.2, 0)
-        local feetPos   = rootPos + Vector3.new(0, -3.2, 0)
-
-        local headSP, headVis = camera:WorldToViewportPoint(headPos)
-        local feetSP, feetVis = camera:WorldToViewportPoint(feetPos)
-
-        if not headVis then
-            for _, l in pairs(obj.box) do l.Visible = false end
-            obj.nameTag.Visible = false
-            continue
-        end
-
-        -- Размер бокса
-        local boxHeight = math.abs(headSP.Y - feetSP.Y)
-        local boxWidth  = boxHeight * 0.45
-
-        local x = headSP.X
-        local yTop = headSP.Y
-        local yBot = feetSP.Y
-
-        local left  = x - boxWidth
-        local right = x + boxWidth
-
-        -- Рисуем 4 стороны
-        obj.box.top.From    = Vector2.new(left,  yTop)
-        obj.box.top.To      = Vector2.new(right, yTop)
-        obj.box.top.Visible = true
-
-        obj.box.bot.From    = Vector2.new(left,  yBot)
-        obj.box.bot.To      = Vector2.new(right, yBot)
-        obj.box.bot.Visible = true
-
-        obj.box.left.From   = Vector2.new(left, yTop)
-        obj.box.left.To     = Vector2.new(left, yBot)
-        obj.box.left.Visible = true
-
-        obj.box.right.From  = Vector2.new(right, yTop)
-        obj.box.right.To    = Vector2.new(right, yBot)
-        obj.box.right.Visible = true
-
-        -- Ник над боксом
-        obj.nameTag.Text     = player.Name
-        obj.nameTag.Position = Vector2.new(x, yTop - 16)
-        obj.nameTag.Visible  = true
-    end
-end)
 
 local function enableESP()
     for _, p in pairs(Players:GetPlayers()) do
@@ -884,6 +811,7 @@ local function disableESP()
     for player, _ in pairs(espObjects) do
         removeESP(player)
     end
+    espObjects = {}
 end
 
 local espToggle = function() end  -- будет переопределён в UI
@@ -1171,7 +1099,7 @@ versionFrame.Parent = content
 local versionLabel = Instance.new("TextLabel")
 versionLabel.Size = UDim2.new(1, 0, 1, 0)
 versionLabel.BackgroundTransparency = 1
-versionLabel.Text = "v1.2.0"
+versionLabel.Text = "v1.2.1"
 versionLabel.TextColor3 = Color3.fromRGB(100, 100, 130)
 versionLabel.TextSize = 11
 versionLabel.Font = Enum.Font.GothamBold
