@@ -683,9 +683,8 @@ espToggle = _espFn
 
 makeSpeedControl(5)
 
--- WalkSpeed слайдер
+-- WalkSpeed слайдер + тоггл
 do
-    local walkInputBox, walkFill, walkThumb, walkUpdateVisual
     local s = makeSliderControl({
         label      = "Скорость ходьбы",
         order      = 6,
@@ -696,20 +695,84 @@ do
         accentColor = Color3.fromRGB(60, 180, 120),
         onChanged  = function(val)
             config.walkSpeed = val
-            local char = localPlayer.Character
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if hum then hum.WalkSpeed = val end
+            if config.walkSpeedEnabled then
+                local char = localPlayer.Character
+                local hum = char and char:FindFirstChildOfClass("Humanoid")
+                if hum then hum.WalkSpeed = val end
+            end
         end,
     })
-    walkInputBox = s.inputBox
-    -- Применяем при респауне
+
+    -- Тоггл-кнопка поверх заголовка слайдера
+    local sliderFrame = s.inputBox.Parent.Parent  -- Frame слайдера
+    local wToggleBg = Instance.new("Frame")
+    wToggleBg.Size = UDim2.new(0, 40, 0, 22)
+    wToggleBg.Position = UDim2.new(0, 12, 0, 28)
+    wToggleBg.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+    wToggleBg.BorderSizePixel = 0
+    wToggleBg.ZIndex = 4
+    wToggleBg.Parent = sliderFrame
+    Instance.new("UICorner", wToggleBg).CornerRadius = UDim.new(1, 0)
+
+    local wCircle = Instance.new("Frame")
+    wCircle.Size = UDim2.new(0, 16, 0, 16)
+    wCircle.Position = UDim2.new(0, 3, 0.5, -8)
+    wCircle.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
+    wCircle.BorderSizePixel = 0
+    wCircle.ZIndex = 5
+    wCircle.Parent = wToggleBg
+    Instance.new("UICorner", wCircle).CornerRadius = UDim.new(1, 0)
+
+    local wStatusLbl = Instance.new("TextLabel")
+    wStatusLbl.Size = UDim2.new(0, 60, 0, 22)
+    wStatusLbl.Position = UDim2.new(0, 56, 0, 28)
+    wStatusLbl.BackgroundTransparency = 1
+    wStatusLbl.Text = "Выкл"
+    wStatusLbl.TextColor3 = Color3.fromRGB(140, 140, 160)
+    wStatusLbl.TextSize = 12
+    wStatusLbl.Font = Enum.Font.GothamBold
+    wStatusLbl.TextXAlignment = Enum.TextXAlignment.Left
+    wStatusLbl.ZIndex = 4
+    wStatusLbl.Parent = sliderFrame
+
+    local function setWalkToggle(state)
+        config.walkSpeedEnabled = state
+        TweenService:Create(wToggleBg, TweenInfo.new(0.2), {
+            BackgroundColor3 = state and Color3.fromRGB(60, 180, 120) or Color3.fromRGB(60, 60, 80)
+        }):Play()
+        TweenService:Create(wCircle, TweenInfo.new(0.2), {
+            Position = state and UDim2.new(0, 21, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
+        }):Play()
+        wStatusLbl.Text = state and "Вкл" or "Выкл"
+        wStatusLbl.TextColor3 = state and Color3.fromRGB(60, 180, 120) or Color3.fromRGB(140, 140, 160)
+        local char = localPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.WalkSpeed = state and config.walkSpeed or 16
+        end
+    end
+
+    -- публичная функция для бинда
+    _G.setWalkToggle = setWalkToggle
+
+    local wBtn = Instance.new("TextButton")
+    wBtn.Size = UDim2.new(0, 40, 0, 22)
+    wBtn.Position = UDim2.new(0, 0, 0, 0)
+    wBtn.BackgroundTransparency = 1
+    wBtn.Text = ""
+    wBtn.ZIndex = 6
+    wBtn.Parent = wToggleBg
+    wBtn.MouseButton1Click:Connect(function()
+        setWalkToggle(not config.walkSpeedEnabled)
+    end)
+
     localPlayer.CharacterAdded:Connect(function(char)
         local hum = char:WaitForChild("Humanoid", 5)
-        if hum then hum.WalkSpeed = config.walkSpeed end
+        if hum and config.walkSpeedEnabled then hum.WalkSpeed = config.walkSpeed end
     end)
 end
 
--- JumpHeight слайдер
+-- JumpHeight слайдер + тоггл
 do
     local s = makeSliderControl({
         label      = "Высота прыжка",
@@ -721,18 +784,83 @@ do
         accentColor = Color3.fromRGB(220, 140, 40),
         onChanged  = function(val)
             config.jumpHeight = val
-            local char = localPlayer.Character
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if hum then
-                hum.JumpHeight = val
-                hum.JumpPower  = val  -- совместимость с разными играми
+            if config.jumpHeightEnabled then
+                local char = localPlayer.Character
+                local hum = char and char:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    hum.JumpHeight = val
+                    hum.JumpPower  = val
+                end
             end
         end,
     })
-    -- Применяем при респауне
+
+    local sliderFrame = s.inputBox.Parent.Parent
+
+    local jToggleBg = Instance.new("Frame")
+    jToggleBg.Size = UDim2.new(0, 40, 0, 22)
+    jToggleBg.Position = UDim2.new(0, 12, 0, 28)
+    jToggleBg.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+    jToggleBg.BorderSizePixel = 0
+    jToggleBg.ZIndex = 4
+    jToggleBg.Parent = sliderFrame
+    Instance.new("UICorner", jToggleBg).CornerRadius = UDim.new(1, 0)
+
+    local jCircle = Instance.new("Frame")
+    jCircle.Size = UDim2.new(0, 16, 0, 16)
+    jCircle.Position = UDim2.new(0, 3, 0.5, -8)
+    jCircle.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
+    jCircle.BorderSizePixel = 0
+    jCircle.ZIndex = 5
+    jCircle.Parent = jToggleBg
+    Instance.new("UICorner", jCircle).CornerRadius = UDim.new(1, 0)
+
+    local jStatusLbl = Instance.new("TextLabel")
+    jStatusLbl.Size = UDim2.new(0, 60, 0, 22)
+    jStatusLbl.Position = UDim2.new(0, 56, 0, 28)
+    jStatusLbl.BackgroundTransparency = 1
+    jStatusLbl.Text = "Выкл"
+    jStatusLbl.TextColor3 = Color3.fromRGB(140, 140, 160)
+    jStatusLbl.TextSize = 12
+    jStatusLbl.Font = Enum.Font.GothamBold
+    jStatusLbl.TextXAlignment = Enum.TextXAlignment.Left
+    jStatusLbl.ZIndex = 4
+    jStatusLbl.Parent = sliderFrame
+
+    local function setJumpToggle(state)
+        config.jumpHeightEnabled = state
+        TweenService:Create(jToggleBg, TweenInfo.new(0.2), {
+            BackgroundColor3 = state and Color3.fromRGB(220, 140, 40) or Color3.fromRGB(60, 60, 80)
+        }):Play()
+        TweenService:Create(jCircle, TweenInfo.new(0.2), {
+            Position = state and UDim2.new(0, 21, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
+        }):Play()
+        jStatusLbl.Text = state and "Вкл" or "Выкл"
+        jStatusLbl.TextColor3 = state and Color3.fromRGB(220, 140, 40) or Color3.fromRGB(140, 140, 160)
+        local char = localPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.JumpHeight = state and config.jumpHeight or 7
+            hum.JumpPower  = state and config.jumpHeight or 7
+        end
+    end
+
+    _G.setJumpToggle = setJumpToggle
+
+    local jBtn = Instance.new("TextButton")
+    jBtn.Size = UDim2.new(0, 40, 0, 22)
+    jBtn.Position = UDim2.new(0, 0, 0, 0)
+    jBtn.BackgroundTransparency = 1
+    jBtn.Text = ""
+    jBtn.ZIndex = 6
+    jBtn.Parent = jToggleBg
+    jBtn.MouseButton1Click:Connect(function()
+        setJumpToggle(not config.jumpHeightEnabled)
+    end)
+
     localPlayer.CharacterAdded:Connect(function(char)
         local hum = char:WaitForChild("Humanoid", 5)
-        if hum then
+        if hum and config.jumpHeightEnabled then
             hum.JumpHeight = config.jumpHeight
             hum.JumpPower  = config.jumpHeight
         end
@@ -1268,20 +1396,9 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     elseif input.KeyCode == binds.noclip then
         noclipToggle()
     elseif input.KeyCode == binds.walkSpeed then
-        config.walkSpeedEnabled = not config.walkSpeedEnabled
-        local char = localPlayer.Character
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
-        if hum then
-            hum.WalkSpeed = config.walkSpeedEnabled and config.walkSpeed or 16
-        end
+        if _G.setWalkToggle then _G.setWalkToggle(not config.walkSpeedEnabled) end
     elseif input.KeyCode == binds.jumpHeight then
-        config.jumpHeightEnabled = not config.jumpHeightEnabled
-        local char = localPlayer.Character
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
-        if hum then
-            hum.JumpHeight = config.jumpHeightEnabled and config.jumpHeight or 7
-            hum.JumpPower  = config.jumpHeightEnabled and config.jumpHeight or 7
-        end
+        if _G.setJumpToggle then _G.setJumpToggle(not config.jumpHeightEnabled) end
     end
 end)
 
