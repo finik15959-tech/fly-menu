@@ -508,7 +508,7 @@ end
 local espEnabled = false
 local espFolder = nil
 
--- Папка для каждого игрока хранится отдельно: espFolder["имя"] = Folder
+-- Папка для каждого игрока хранится отдельно: espPlayerFolders["имя"] = Folder
 local espPlayerFolders = {}
 
 local function removeESP(player)
@@ -516,9 +516,6 @@ local function removeESP(player)
     if pf and pf.Parent then pf:Destroy() end
     espPlayerFolders[player.Name] = nil
 end
-
--- Части тела, которые пропускаем (HRP невидим, аксессуары — Handle)
-local SKIP_PARTS = { HumanoidRootPart = true }
 
 local function createESP(player)
     if player == localPlayer then return end
@@ -530,39 +527,20 @@ local function createESP(player)
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
-    -- Папка под конкретного игрока внутри общей ESP папки
+    -- Папка под конкретного игрока
     local pFolder = Instance.new("Folder")
     pFolder.Name = "PESP_" .. player.Name
     pFolder.Parent = espFolder
     espPlayerFolders[player.Name] = pFolder
 
-    -- SelectionBox на каждую BasePart (тело + аксессуары)
-    for _, part in ipairs(char:GetDescendants()) do
-        if part:IsA("BasePart") and not SKIP_PARTS[part.Name] then
-            local sb = Instance.new("SelectionBox")
-            sb.Adornee = part
-            sb.Color3 = Color3.fromRGB(255, 50, 50)
-            sb.LineThickness = 0.03
-            sb.SurfaceTransparency = 0.8
-            sb.SurfaceColor3 = Color3.fromRGB(255, 50, 50)
-            sb.Parent = pFolder
-        end
-    end
-
-    -- Отслеживаем добавление новых частей (аксессуары надеваются с задержкой)
-    char.DescendantAdded:Connect(function(desc)
-        if not espEnabled then return end
-        if not pFolder.Parent then return end
-        if desc:IsA("BasePart") and not SKIP_PARTS[desc.Name] then
-            local sb = Instance.new("SelectionBox")
-            sb.Adornee = desc
-            sb.Color3 = Color3.fromRGB(255, 50, 50)
-            sb.LineThickness = 0.03
-            sb.SurfaceTransparency = 0.8
-            sb.SurfaceColor3 = Color3.fromRGB(255, 50, 50)
-            sb.Parent = pFolder
-        end
-    end)
+    -- Один SelectionBox на весь Model — белый outline, заливка полностью прозрачная
+    local sb = Instance.new("SelectionBox")
+    sb.Adornee = char
+    sb.Color3 = Color3.fromRGB(255, 255, 255)
+    sb.LineThickness = 0.05
+    sb.SurfaceTransparency = 1        -- без заливки
+    sb.SurfaceColor3 = Color3.fromRGB(255, 255, 255)
+    sb.Parent = pFolder
 
     -- Ник над головой
     local bb = Instance.new("BillboardGui")
@@ -1081,7 +1059,7 @@ versionFrame.Parent = content
 local versionLabel = Instance.new("TextLabel")
 versionLabel.Size = UDim2.new(1, 0, 1, 0)
 versionLabel.BackgroundTransparency = 1
-versionLabel.Text = "v1.2.6"  -- fix: per-part ESP SelectionBox (fits skin shape)
+versionLabel.Text = "v1.2.8"  -- fix: ESP white outline, no fill, single box on model
 versionLabel.TextColor3 = Color3.fromRGB(100, 100, 130)
 versionLabel.TextSize = 11
 versionLabel.Font = Enum.Font.GothamBold
@@ -1174,4 +1152,4 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
-print("💤 DreamCheats v1.2.6 загружен! | Бинды можно изменить в меню")
+print("💤 DreamCheats v1.2.8 загружен! | Бинды можно изменить в меню")
