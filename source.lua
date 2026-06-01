@@ -718,6 +718,108 @@ end
 
 stopBtn.MouseButton1Click:Connect(doStopFollow)
 
+makeLabel("-- ESP", content, 85)
+
+local _, espToggle = makeToggle("ESP (box + nick)", 86, function(state)
+    espEnabled = state
+    if state then
+        enableESP()
+    else
+        disableESP()
+    end
+end)
+
+
+-- ===============================
+-- === ESP ===
+-- ===============================
+
+local espEnabled = false
+local espObjects = {}  -- [player] = { box, nameLabel, highlight }
+
+local camera = workspace.CurrentCamera
+
+local function removeESP(player)
+    local obj = espObjects[player]
+    if obj then
+        if obj.highlight and obj.highlight.Parent then obj.highlight:Destroy() end
+        if obj.billboardGui and obj.billboardGui.Parent then obj.billboardGui:Destroy() end
+        espObjects[player] = nil
+    end
+end
+
+local function createESP(player)
+    if player == localPlayer then return end
+    removeESP(player)
+
+    local char = player.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    -- Highlight (объёмная подсветка — встроенная в Roblox)
+    local hl = Instance.new("Highlight")
+    hl.Adornee = char
+    hl.FillColor = Color3.fromRGB(255, 50, 50)
+    hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+    hl.FillTransparency = 0.6
+    hl.OutlineTransparency = 0
+    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    hl.Parent = char
+
+    -- BillboardGui с ником над головой
+    local bb = Instance.new("BillboardGui")
+    bb.Size = UDim2.new(0, 120, 0, 30)
+    bb.StudsOffset = Vector3.new(0, 3.2, 0)
+    bb.AlwaysOnTop = true
+    bb.Adornee = hrp
+    bb.Parent = hrp
+
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Size = UDim2.new(1, 0, 1, 0)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = player.Name
+    nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    nameLabel.TextStrokeTransparency = 0
+    nameLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    nameLabel.TextSize = 14
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.Parent = bb
+
+    espObjects[player] = { highlight = hl, billboardGui = bb }
+end
+
+local function enableESP()
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= localPlayer then
+            createESP(p)
+            -- Перезапускать ESP при смене персонажа
+            p.CharacterAdded:Connect(function()
+                task.wait(0.5)
+                if espEnabled then createESP(p) end
+            end)
+        end
+    end
+    Players.PlayerAdded:Connect(function(p)
+        if not espEnabled then return end
+        task.wait(0.5)
+        createESP(p)
+        p.CharacterAdded:Connect(function()
+            task.wait(0.5)
+            if espEnabled then createESP(p) end
+        end)
+    end)
+    Players.PlayerRemoving:Connect(function(p)
+        removeESP(p)
+    end)
+end
+
+local function disableESP()
+    for player, _ in pairs(espObjects) do
+        removeESP(player)
+    end
+end
+
 -- ===============================
 -- === СЕКЦИЯ БИНДОВ (ИЗМЕНЯЕМЫЕ) ===
 -- ===============================
