@@ -43,7 +43,8 @@ local function saveSettings()
             bindFly      = tostring(binds.fly),
             bindNoclip   = tostring(binds.noclip),
             bindUnfollow = tostring(binds.unfollow),
-            bindMenuKey  = tostring(menuBind.key),
+            bindEsp      = tostring(binds.esp),
+            bindMenu     = tostring(binds.menu),
         }
         writefile(SAVE_FILE, serialize(data))
     end)
@@ -65,7 +66,8 @@ local function loadSettings()
     binds.fly      = toKeyCode(result.bindFly)      or binds.fly
     binds.noclip   = toKeyCode(result.bindNoclip)   or binds.noclip
     binds.unfollow = toKeyCode(result.bindUnfollow) or binds.unfollow
-    menuBind.key   = toKeyCode(result.bindMenuKey)  or menuBind.key
+    binds.esp      = toKeyCode(result.bindEsp)      or binds.esp
+    binds.menu     = toKeyCode(result.bindMenu)     or binds.menu
 end
 
 -- Авто-загрузка отключена. Используй кнопку 📂 Загрузить в меню
@@ -86,12 +88,8 @@ local binds = {
     fly      = Enum.KeyCode.F5,
     noclip   = Enum.KeyCode.F6,
     unfollow = Enum.KeyCode.F7,
-}
-
--- Бинд открытия/закрытия меню (Modifier + Key)
-local menuBind = {
-    modifier = Enum.KeyCode.LeftShift,
-    key      = Enum.KeyCode.C,
+    esp      = Enum.KeyCode.F8,
+    menu     = Enum.KeyCode.F9,
 }
 
 -- Ключ -> отображаемое имя
@@ -580,6 +578,12 @@ local _, noclipToggle = makeToggle("Ноуклип", 3, function(state)
     end
 end)
 
+local _ef, _espFn = makeToggle("ESP (бокс + ник)", 4, function(state)
+    espEnabled = state
+    if state then enableESP() else disableESP() end
+end)
+espToggle = _espFn
+
 makeSpeedControl(4)
 
 makeLabel("— Преследование", content, 5)
@@ -717,18 +721,6 @@ local function doStopFollow()
 end
 
 stopBtn.MouseButton1Click:Connect(doStopFollow)
-
-makeLabel("-- ESP", content, 85)
-
-local _, espToggle = makeToggle("ESP (box + nick)", 86, function(state)
-    espEnabled = state
-    if state then
-        enableESP()
-    else
-        disableESP()
-    end
-end)
-
 
 -- ===============================
 -- === ESP ===
@@ -894,92 +886,11 @@ local function disableESP()
     end
 end
 
+local espToggle = function() end  -- будет переопределён в UI
+
 -- ===============================
 -- === СЕКЦИЯ БИНДОВ (ИЗМЕНЯЕМЫЕ) ===
 -- ===============================
-
-makeLabel("— Меню", content, 9)
-
--- Фрейм бинда меню
-local menuBindFrame = Instance.new("Frame")
-menuBindFrame.Size = UDim2.new(1, 0, 0, 68)
-menuBindFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
-menuBindFrame.BorderSizePixel = 0
-menuBindFrame.LayoutOrder = 91
-menuBindFrame.Parent = content
-Instance.new("UICorner", menuBindFrame).CornerRadius = UDim.new(0, 8)
-
--- Подпись
-local menuBindTitle = Instance.new("TextLabel")
-menuBindTitle.Size = UDim2.new(1, -12, 0, 22)
-menuBindTitle.Position = UDim2.new(0, 12, 0, 6)
-menuBindTitle.BackgroundTransparency = 1
-menuBindTitle.Text = "Открыть / закрыть меню"
-menuBindTitle.TextColor3 = Color3.fromRGB(220, 220, 240)
-menuBindTitle.TextSize = 14
-menuBindTitle.Font = Enum.Font.Gotham
-menuBindTitle.TextXAlignment = Enum.TextXAlignment.Left
-menuBindTitle.Parent = menuBindFrame
-
--- Отображение текущего бинда
-local function menuBindDisplay()
-    return "Shift + " .. keyName(menuBind.key)
-end
-
--- Состояние прослушивания меню-бинда
-local listeningMenuBind = false
-
-local menuKeyBtn = Instance.new("TextButton")
-menuKeyBtn.Size = UDim2.new(0, 90, 0, 24)
-menuKeyBtn.Position = UDim2.new(1, -100, 0, 6)
-menuKeyBtn.BackgroundColor3 = Color3.fromRGB(100, 60, 220)
-menuKeyBtn.BorderSizePixel = 0
-menuKeyBtn.Text = menuBindDisplay()
-menuKeyBtn.TextSize = 12
-menuKeyBtn.Font = Enum.Font.GothamBold
-menuKeyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-menuKeyBtn.Parent = menuBindFrame
-Instance.new("UICorner", menuKeyBtn).CornerRadius = UDim.new(0, 6)
-
-local menuBindHint = Instance.new("TextLabel")
-menuBindHint.Size = UDim2.new(1, -12, 0, 18)
-menuBindHint.Position = UDim2.new(0, 12, 0, 42)
-menuBindHint.BackgroundTransparency = 1
-menuBindHint.Text = "Нажмите кнопку, затем любую клавишу"
-menuBindHint.TextColor3 = Color3.fromRGB(100, 100, 130)
-menuBindHint.TextSize = 11
-menuBindHint.Font = Enum.Font.Gotham
-menuBindHint.TextXAlignment = Enum.TextXAlignment.Left
-menuBindHint.Parent = menuBindFrame
-
-menuKeyBtn.MouseButton1Click:Connect(function()
-    if listeningMenuBind then
-        listeningMenuBind = false
-        menuKeyBtn.Text = menuBindDisplay()
-        TweenService:Create(menuKeyBtn, TweenInfo.new(0.15), {
-            BackgroundColor3 = Color3.fromRGB(100, 60, 220)
-        }):Play()
-        menuBindHint.Text = "Нажмите кнопку, затем любую клавишу"
-    else
-        -- Сбросить другие слушатели
-        if listeningFor then
-            local oldBtn = bindKeyLabels[listeningFor]
-            if oldBtn then
-                oldBtn.Text = keyName(binds[listeningFor])
-                TweenService:Create(oldBtn, TweenInfo.new(0.15), {
-                    BackgroundColor3 = Color3.fromRGB(100, 60, 220)
-                }):Play()
-            end
-            listeningFor = nil
-        end
-        listeningMenuBind = true
-        menuKeyBtn.Text = "..."
-        TweenService:Create(menuKeyBtn, TweenInfo.new(0.15), {
-            BackgroundColor3 = Color3.fromRGB(220, 160, 30)
-        }):Play()
-        menuBindHint.Text = "Нажмите новую клавишу (Shift будет добавлен)"
-    end
-end)
 
 makeLabel("— Бинды", content, 9)
 
@@ -988,7 +899,7 @@ local listeningFor = nil  -- "fly" | "noclip" | "unfollow" | nil
 local bindKeyLabels = {}  -- bindKey -> TextLabel кнопки
 
 local bindsContainer = Instance.new("Frame")
-bindsContainer.Size = UDim2.new(1, 0, 0, 118)
+bindsContainer.Size = UDim2.new(1, 0, 0, 196)
 bindsContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
 bindsContainer.BorderSizePixel = 0
 bindsContainer.LayoutOrder = 10
@@ -1002,9 +913,11 @@ bindsInnerLayout.Parent = bindsContainer
 
 -- Данные строк биндов
 local bindRows = {
-    { key = "fly",      icon = "✈", label = "Полёт",                order = 1 },
-    { key = "noclip",   icon = "👻", label = "Ноуклип",              order = 2 },
+    { key = "fly",      icon = "✈",  label = "Полёт",                 order = 1 },
+    { key = "noclip",   icon = "👻", label = "Ноуклип",               order = 2 },
     { key = "unfollow", icon = "🚫", label = "Отменить преследование", order = 3 },
+    { key = "esp",      icon = "👁",  label = "ESP",                   order = 4 },
+    { key = "menu",     icon = "📋", label = "Открыть/закрыть меню",  order = 5 },
 }
 
 local function makeBindRow(data)
@@ -1173,7 +1086,8 @@ saveBtn.MouseButton1Click:Connect(function()
             bindFly      = tostring(binds.fly),
             bindNoclip   = tostring(binds.noclip),
             bindUnfollow = tostring(binds.unfollow),
-            bindMenuKey  = tostring(menuBind.key),
+            bindEsp      = tostring(binds.esp),
+            bindMenu     = tostring(binds.menu),
         }
         writefile(SAVE_FILE, serialize(data))
     end)
@@ -1232,13 +1146,6 @@ local function applyLoadedSettings()
         end
     end
 
-    -- Бинд меню
-    local mk = toKeyCode(result.bindMenuKey)
-    if mk then
-        menuBind.key = mk
-        if menuKeyBtn then menuKeyBtn.Text = menuBindDisplay() end
-    end
-
     showStatus("✔ Настройки загружены!", false)
 end
 
@@ -1251,8 +1158,25 @@ loadBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ===============================
--- === ПОДПИСЬ DreamCompany ===
+-- === ВЕРСИЯ + ПОДПИСЬ DreamCompany ===
 -- ===============================
+
+local versionFrame = Instance.new("Frame")
+versionFrame.Size = UDim2.new(1, 0, 0, 22)
+versionFrame.BackgroundTransparency = 1
+versionFrame.BorderSizePixel = 0
+versionFrame.LayoutOrder = 119
+versionFrame.Parent = content
+
+local versionLabel = Instance.new("TextLabel")
+versionLabel.Size = UDim2.new(1, 0, 1, 0)
+versionLabel.BackgroundTransparency = 1
+versionLabel.Text = "v1.2.0"
+versionLabel.TextColor3 = Color3.fromRGB(100, 100, 130)
+versionLabel.TextSize = 11
+versionLabel.Font = Enum.Font.GothamBold
+versionLabel.TextXAlignment = Enum.TextXAlignment.Center
+versionLabel.Parent = versionFrame
 
 local creditsFrame = Instance.new("Frame")
 creditsFrame.Size = UDim2.new(1, 0, 0, 34)
@@ -1324,41 +1248,10 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         return
     end
 
-    -- Прослушивание меню-бинда
-    if listeningMenuBind then
-        local kc = input.KeyCode
-        if kc == Enum.KeyCode.Escape then
-            listeningMenuBind = false
-            menuKeyBtn.Text = menuBindDisplay()
-            TweenService:Create(menuKeyBtn, TweenInfo.new(0.15), {
-                BackgroundColor3 = Color3.fromRGB(100, 60, 220)
-            }):Play()
-            menuBindHint.Text = "Нажмите кнопку, затем любую клавишу"
-        elseif not blockedKeys[kc]
-            and kc ~= Enum.KeyCode.Unknown
-            and kc ~= Enum.KeyCode.LeftShift
-            and kc ~= Enum.KeyCode.RightShift
-            and kc ~= Enum.KeyCode.LeftControl
-            and kc ~= Enum.KeyCode.RightControl
-            and kc ~= Enum.KeyCode.LeftAlt
-            and kc ~= Enum.KeyCode.RightAlt then
-            menuBind.key = kc
-            menuKeyBtn.Text = menuBindDisplay()
-            TweenService:Create(menuKeyBtn, TweenInfo.new(0.15), {
-                BackgroundColor3 = Color3.fromRGB(100, 60, 220)
-            }):Play()
-            menuBindHint.Text = "Нажмите кнопку, затем любую клавишу"
-            listeningMenuBind = false
-        end
-        return
-    end
-
     if gameProcessed then return end
 
     -- Бинд меню (Shift + key)
-    local shiftHeld = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift)
-        or UserInputService:IsKeyDown(Enum.KeyCode.RightShift)
-    if shiftHeld and input.KeyCode == menuBind.key then
+    if input.KeyCode == binds.menu then
         toggleMenu()
         return
     end
@@ -1370,6 +1263,8 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         noclipToggle()
     elseif input.KeyCode == binds.unfollow then
         doStopFollow()
+    elseif input.KeyCode == binds.esp then
+        espToggle()
     end
 end)
 
