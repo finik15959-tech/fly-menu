@@ -579,13 +579,13 @@ local _, noclipToggle = makeToggle("Ноуклип", 3, function(state)
     end
 end)
 
-local _ef, _espFn = makeToggle("ESP (бокс + ник)", 35, function(state)
+local _ef, _espFn = makeToggle("ESP (бокс + ник)", 4, function(state)
     espEnabled = state
     if state then enableESP() else disableESP() end
 end)
 espToggle = _espFn
 
-makeSpeedControl(4)
+makeSpeedControl(5)
 
 makeLabel("— Преследование", content, 5)
 
@@ -728,23 +728,20 @@ stopBtn.MouseButton1Click:Connect(doStopFollow)
 -- ===============================
 
 local espEnabled = false
-local espObjects = {}  -- [player] = { selectionBox, billboardGui }
+local espFolder = nil  -- папка в workspace для всех ESP объектов
 
 local function removeESP(player)
-    local obj = espObjects[player]
-    if obj then
-        if obj.selectionBox and obj.selectionBox.Parent then
-            obj.selectionBox:Destroy()
-        end
-        if obj.billboardGui and obj.billboardGui.Parent then
-            obj.billboardGui:Destroy()
-        end
-        espObjects[player] = nil
+    if espFolder then
+        local obj = espFolder:FindFirstChild("ESP_" .. player.Name)
+        if obj then obj:Destroy() end
+        local bb = espFolder:FindFirstChild("BB_" .. player.Name)
+        if bb then bb:Destroy() end
     end
 end
 
 local function createESP(player)
     if player == localPlayer then return end
+    if not espFolder or not espFolder.Parent then return end
     removeESP(player)
 
     local char = player.Character
@@ -752,23 +749,25 @@ local function createESP(player)
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
-    -- SelectionBox — рисует бокс вокруг модели, виден сквозь стены
+    -- SelectionBox
     local selBox = Instance.new("SelectionBox")
+    selBox.Name = "ESP_" .. player.Name
     selBox.Adornee = char
     selBox.Color3 = Color3.fromRGB(255, 50, 50)
     selBox.LineThickness = 0.05
-    selBox.SurfaceTransparency = 0.8
+    selBox.SurfaceTransparency = 0.85
     selBox.SurfaceColor3 = Color3.fromRGB(255, 50, 50)
-    selBox.Parent = workspace
+    selBox.Parent = espFolder
 
-    -- BillboardGui — ник над головой
+    -- BillboardGui с ником
     local bb = Instance.new("BillboardGui")
+    bb.Name = "BB_" .. player.Name
     bb.Adornee = hrp
     bb.Size = UDim2.new(0, 100, 0, 25)
     bb.StudsOffset = Vector3.new(0, 3.5, 0)
     bb.AlwaysOnTop = true
     bb.ResetOnSpawn = false
-    bb.Parent = workspace
+    bb.Parent = espFolder
 
     local nameLabel = Instance.new("TextLabel")
     nameLabel.Size = UDim2.new(1, 0, 1, 0)
@@ -780,39 +779,46 @@ local function createESP(player)
     nameLabel.TextSize = 13
     nameLabel.Font = Enum.Font.GothamBold
     nameLabel.Parent = bb
-
-    espObjects[player] = { selectionBox = selBox, billboardGui = bb }
 end
 
 local function enableESP()
+    -- Создаём папку для ESP объектов
+    espFolder = Instance.new("Folder")
+    espFolder.Name = "DreamCheatsESP"
+    espFolder.Parent = workspace
+
+    -- Создаём ESP для всех текущих игроков
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= localPlayer then
             createESP(p)
+            -- Пересоздаём при респауне
             p.CharacterAdded:Connect(function()
-                task.wait(0.5)
+                task.wait(0.3)
                 if espEnabled then createESP(p) end
             end)
         end
     end
+
+    -- Новые игроки
     Players.PlayerAdded:Connect(function(p)
         if not espEnabled then return end
-        task.wait(0.5)
-        createESP(p)
         p.CharacterAdded:Connect(function()
-            task.wait(0.5)
+            task.wait(0.3)
             if espEnabled then createESP(p) end
         end)
     end)
+
+    -- Ушедшие игроки
     Players.PlayerRemoving:Connect(function(p)
         removeESP(p)
     end)
 end
 
 local function disableESP()
-    for player, _ in pairs(espObjects) do
-        removeESP(player)
+    if espFolder and espFolder.Parent then
+        espFolder:Destroy()
     end
-    espObjects = {}
+    espFolder = nil
 end
 
 
@@ -1100,7 +1106,7 @@ versionFrame.Parent = content
 local versionLabel = Instance.new("TextLabel")
 versionLabel.Size = UDim2.new(1, 0, 1, 0)
 versionLabel.BackgroundTransparency = 1
-versionLabel.Text = "v1.2.2"
+versionLabel.Text = "v1.2.4"
 versionLabel.TextColor3 = Color3.fromRGB(100, 100, 130)
 versionLabel.TextSize = 11
 versionLabel.Font = Enum.Font.GothamBold
