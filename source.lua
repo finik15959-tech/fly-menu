@@ -9,7 +9,6 @@ local localPlayer = Players.LocalPlayer
 -- === СОХРАНЕНИЕ НАСТРОЕК ===
 local SAVE_FILE = "DreamCheats_settings.txt"
 
--- Простая сериализация без HttpService
 local function serialize(data)
     local parts = {}
     for k, v in pairs(data) do
@@ -36,42 +35,6 @@ local function toKeyCode(str)
     return (ok2 and kc) or nil
 end
 
-local function saveSettings()
-    pcall(function()
-        local data = {
-            flySpeed     = config.flySpeed,
-            bindFly      = tostring(binds.fly),
-            bindNoclip   = tostring(binds.noclip),
-            bindUnfollow = tostring(binds.unfollow),
-            bindEsp      = tostring(binds.esp),
-            bindMenu     = tostring(binds.menu),
-        }
-        writefile(SAVE_FILE, serialize(data))
-    end)
-end
-
-local function loadSettings()
-    local ok, raw = pcall(function()
-        if isfile(SAVE_FILE) then
-            return readfile(SAVE_FILE)
-        end
-    end)
-    if not ok or not raw then return end
-    local result = deserialize(raw)
-
-    local spd = tonumber(result.flySpeed)
-    if spd then
-        config.flySpeed = math.clamp(math.floor(spd), 1, 500)
-    end
-    binds.fly      = toKeyCode(result.bindFly)      or binds.fly
-    binds.noclip   = toKeyCode(result.bindNoclip)   or binds.noclip
-    binds.unfollow = toKeyCode(result.bindUnfollow) or binds.unfollow
-    binds.esp      = toKeyCode(result.bindEsp)      or binds.esp
-    binds.menu     = toKeyCode(result.bindMenu)     or binds.menu
-end
-
--- Авто-загрузка отключена. Используй кнопку 📂 Загрузить в меню
-
 -- === НАСТРОЙКИ ===
 local config = {
     flySpeed = 50,
@@ -92,7 +55,6 @@ local binds = {
     menu     = Enum.KeyCode.F9,
 }
 
--- Ключ -> отображаемое имя
 local function keyName(kc)
     local s = tostring(kc)
     return s:match("KeyCode%.(.+)") or s
@@ -332,7 +294,7 @@ local function makeSpeedControl(order)
     track.Parent = frame
     Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
 
-    fill = Instance.new("Frame")
+    local fill = Instance.new("Frame")
     local initRel = (config.flySpeed - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN)
     fill.Size = UDim2.new(math.clamp(initRel, 0, 1), 0, 1, 0)
     fill.BackgroundColor3 = Color3.fromRGB(100, 60, 220)
@@ -340,7 +302,7 @@ local function makeSpeedControl(order)
     fill.Parent = track
     Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
 
-    thumb = Instance.new("Frame")
+    local thumb = Instance.new("Frame")
     thumb.Size = UDim2.new(0, 14, 0, 14)
     thumb.Position = UDim2.new(math.clamp(initRel, 0, 1), -7, 0.5, -7)
     thumb.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -539,6 +501,97 @@ local function toggleMenu()
     end
 end
 
+-- ===============================
+-- === ESP (объявлено ДО makeToggle вызовов) ===
+-- ===============================
+
+local espEnabled = false
+local espFolder = nil
+
+local function removeESP(player)
+    if espFolder then
+        local obj = espFolder:FindFirstChild("ESP_" .. player.Name)
+        if obj then obj:Destroy() end
+        local bb = espFolder:FindFirstChild("BB_" .. player.Name)
+        if bb then bb:Destroy() end
+    end
+end
+
+local function createESP(player)
+    if player == localPlayer then return end
+    if not espFolder or not espFolder.Parent then return end
+    removeESP(player)
+
+    local char = player.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    local selBox = Instance.new("SelectionBox")
+    selBox.Name = "ESP_" .. player.Name
+    selBox.Adornee = char
+    selBox.Color3 = Color3.fromRGB(255, 50, 50)
+    selBox.LineThickness = 0.05
+    selBox.SurfaceTransparency = 0.85
+    selBox.SurfaceColor3 = Color3.fromRGB(255, 50, 50)
+    selBox.Parent = espFolder
+
+    local bb = Instance.new("BillboardGui")
+    bb.Name = "BB_" .. player.Name
+    bb.Adornee = hrp
+    bb.Size = UDim2.new(0, 100, 0, 25)
+    bb.StudsOffset = Vector3.new(0, 3.5, 0)
+    bb.AlwaysOnTop = true
+    bb.ResetOnSpawn = false
+    bb.Parent = espFolder
+
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Size = UDim2.new(1, 0, 1, 0)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = player.Name
+    nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    nameLabel.TextStrokeTransparency = 0
+    nameLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    nameLabel.TextSize = 13
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.Parent = bb
+end
+
+local function enableESP()
+    espFolder = Instance.new("Folder")
+    espFolder.Name = "DreamCheatsESP"
+    espFolder.Parent = workspace
+
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= localPlayer then
+            createESP(p)
+            p.CharacterAdded:Connect(function()
+                task.wait(0.3)
+                if espEnabled then createESP(p) end
+            end)
+        end
+    end
+
+    Players.PlayerAdded:Connect(function(p)
+        if not espEnabled then return end
+        p.CharacterAdded:Connect(function()
+            task.wait(0.3)
+            if espEnabled then createESP(p) end
+        end)
+    end)
+
+    Players.PlayerRemoving:Connect(function(p)
+        removeESP(p)
+    end)
+end
+
+local function disableESP()
+    if espFolder and espFolder.Parent then
+        espFolder:Destroy()
+    end
+    espFolder = nil
+end
+
 -- === UI ЭЛЕМЕНТЫ ===
 local espToggle = function() end  -- upvalue, переопределяется ниже
 
@@ -724,114 +777,13 @@ end
 stopBtn.MouseButton1Click:Connect(doStopFollow)
 
 -- ===============================
--- === ESP ===
--- ===============================
-
-local espEnabled = false
-local espFolder = nil  -- папка в workspace для всех ESP объектов
-
-local function removeESP(player)
-    if espFolder then
-        local obj = espFolder:FindFirstChild("ESP_" .. player.Name)
-        if obj then obj:Destroy() end
-        local bb = espFolder:FindFirstChild("BB_" .. player.Name)
-        if bb then bb:Destroy() end
-    end
-end
-
-local function createESP(player)
-    if player == localPlayer then return end
-    if not espFolder or not espFolder.Parent then return end
-    removeESP(player)
-
-    local char = player.Character
-    if not char then return end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-
-    -- SelectionBox
-    local selBox = Instance.new("SelectionBox")
-    selBox.Name = "ESP_" .. player.Name
-    selBox.Adornee = char
-    selBox.Color3 = Color3.fromRGB(255, 50, 50)
-    selBox.LineThickness = 0.05
-    selBox.SurfaceTransparency = 0.85
-    selBox.SurfaceColor3 = Color3.fromRGB(255, 50, 50)
-    selBox.Parent = espFolder
-
-    -- BillboardGui с ником
-    local bb = Instance.new("BillboardGui")
-    bb.Name = "BB_" .. player.Name
-    bb.Adornee = hrp
-    bb.Size = UDim2.new(0, 100, 0, 25)
-    bb.StudsOffset = Vector3.new(0, 3.5, 0)
-    bb.AlwaysOnTop = true
-    bb.ResetOnSpawn = false
-    bb.Parent = espFolder
-
-    local nameLabel = Instance.new("TextLabel")
-    nameLabel.Size = UDim2.new(1, 0, 1, 0)
-    nameLabel.BackgroundTransparency = 1
-    nameLabel.Text = player.Name
-    nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    nameLabel.TextStrokeTransparency = 0
-    nameLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-    nameLabel.TextSize = 13
-    nameLabel.Font = Enum.Font.GothamBold
-    nameLabel.Parent = bb
-end
-
-local function enableESP()
-    -- Создаём папку для ESP объектов
-    espFolder = Instance.new("Folder")
-    espFolder.Name = "DreamCheatsESP"
-    espFolder.Parent = workspace
-
-    -- Создаём ESP для всех текущих игроков
-    for _, p in pairs(Players:GetPlayers()) do
-        if p ~= localPlayer then
-            createESP(p)
-            -- Пересоздаём при респауне
-            p.CharacterAdded:Connect(function()
-                task.wait(0.3)
-                if espEnabled then createESP(p) end
-            end)
-        end
-    end
-
-    -- Новые игроки
-    Players.PlayerAdded:Connect(function(p)
-        if not espEnabled then return end
-        p.CharacterAdded:Connect(function()
-            task.wait(0.3)
-            if espEnabled then createESP(p) end
-        end)
-    end)
-
-    -- Ушедшие игроки
-    Players.PlayerRemoving:Connect(function(p)
-        removeESP(p)
-    end)
-end
-
-local function disableESP()
-    if espFolder and espFolder.Parent then
-        espFolder:Destroy()
-    end
-    espFolder = nil
-end
-
-
-
--- ===============================
 -- === СЕКЦИЯ БИНДОВ (ИЗМЕНЯЕМЫЕ) ===
 -- ===============================
 
 makeLabel("— Бинды", content, 9)
 
--- Состояние ожидания клавиши
-local listeningFor = nil  -- "fly" | "noclip" | "unfollow" | nil
-local bindKeyLabels = {}  -- bindKey -> TextLabel кнопки
+local listeningFor = nil
+local bindKeyLabels = {}
 
 local bindsContainer = Instance.new("Frame")
 bindsContainer.Size = UDim2.new(1, 0, 0, 196)
@@ -846,7 +798,6 @@ bindsInnerLayout.SortOrder = Enum.SortOrder.LayoutOrder
 bindsInnerLayout.Padding = UDim.new(0, 0)
 bindsInnerLayout.Parent = bindsContainer
 
--- Данные строк биндов
 local bindRows = {
     { key = "fly",      icon = "✈",  label = "Полёт",                 order = 1 },
     { key = "noclip",   icon = "👻", label = "Ноуклип",               order = 2 },
@@ -885,7 +836,6 @@ local function makeBindRow(data)
     nameLbl.TextXAlignment = Enum.TextXAlignment.Left
     nameLbl.Parent = row
 
-    -- Кнопка бинда
     local keyBtn = Instance.new("TextButton")
     keyBtn.Size = UDim2.new(0, 54, 0, 24)
     keyBtn.Position = UDim2.new(1, -64, 0.5, -12)
@@ -902,14 +852,12 @@ local function makeBindRow(data)
 
     keyBtn.MouseButton1Click:Connect(function()
         if listeningFor == data.key then
-            -- Отмена прослушивания
             listeningFor = nil
             keyBtn.Text = keyName(binds[data.key])
             TweenService:Create(keyBtn, TweenInfo.new(0.15), {
                 BackgroundColor3 = Color3.fromRGB(100, 60, 220)
             }):Play()
         else
-            -- Если другая кнопка слушает — сбросить её
             if listeningFor then
                 local oldBtn = bindKeyLabels[listeningFor]
                 if oldBtn then
@@ -927,8 +875,7 @@ local function makeBindRow(data)
         end
     end)
 
-    -- Разделитель
-    if data.order < 3 then
+    if data.order < 5 then
         local div = Instance.new("Frame")
         div.Size = UDim2.new(1, -20, 0, 1)
         div.Position = UDim2.new(0, 10, 1, -1)
@@ -942,7 +889,6 @@ for _, rd in ipairs(bindRows) do
     makeBindRow(rd)
 end
 
--- Подсказка под биндами
 local hintLbl = Instance.new("TextLabel")
 hintLbl.Size = UDim2.new(1, 0, 0, 18)
 hintLbl.BackgroundTransparency = 1
@@ -958,7 +904,6 @@ hintLbl.Parent = content
 -- === КНОПКИ SAVE / LOAD ===
 -- ===============================
 
--- Статусная подпись
 local saveStatusLbl = Instance.new("TextLabel")
 saveStatusLbl.Size = UDim2.new(1, 0, 0, 16)
 saveStatusLbl.BackgroundTransparency = 1
@@ -987,7 +932,6 @@ saveBtnsFrame.BorderSizePixel = 0
 saveBtnsFrame.LayoutOrder = 116
 saveBtnsFrame.Parent = content
 
--- Кнопка SAVE
 local saveBtn = Instance.new("TextButton")
 saveBtn.Size = UDim2.new(0.48, 0, 1, 0)
 saveBtn.Position = UDim2.new(0, 0, 0, 0)
@@ -1000,7 +944,6 @@ saveBtn.Font = Enum.Font.GothamBold
 saveBtn.Parent = saveBtnsFrame
 Instance.new("UICorner", saveBtn).CornerRadius = UDim.new(0, 8)
 
--- Кнопка LOAD
 local loadBtn = Instance.new("TextButton")
 loadBtn.Size = UDim2.new(0.48, 0, 1, 0)
 loadBtn.Position = UDim2.new(0.52, 0, 0, 0)
@@ -1013,18 +956,20 @@ loadBtn.Font = Enum.Font.GothamBold
 loadBtn.Parent = saveBtnsFrame
 Instance.new("UICorner", loadBtn).CornerRadius = UDim.new(0, 8)
 
--- Логика Save
+local function serializeSettings()
+    return {
+        flySpeed     = config.flySpeed,
+        bindFly      = tostring(binds.fly),
+        bindNoclip   = tostring(binds.noclip),
+        bindUnfollow = tostring(binds.unfollow),
+        bindEsp      = tostring(binds.esp),
+        bindMenu     = tostring(binds.menu),
+    }
+end
+
 saveBtn.MouseButton1Click:Connect(function()
     local ok, err = pcall(function()
-        local data = {
-            flySpeed     = config.flySpeed,
-            bindFly      = tostring(binds.fly),
-            bindNoclip   = tostring(binds.noclip),
-            bindUnfollow = tostring(binds.unfollow),
-            bindEsp      = tostring(binds.esp),
-            bindMenu     = tostring(binds.menu),
-        }
-        writefile(SAVE_FILE, serialize(data))
+        writefile(SAVE_FILE, serialize(serializeSettings()))
     end)
     if ok then
         TweenService:Create(saveBtn, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(40, 200, 100)}):Play()
@@ -1037,7 +982,6 @@ saveBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Логика Load
 local function applyLoadedSettings()
     local ok, raw = pcall(function()
         if isfile(SAVE_FILE) then
@@ -1050,14 +994,12 @@ local function applyLoadedSettings()
     end
     local result = deserialize(raw)
 
-    -- Скорость
     local spd = tonumber(result.flySpeed)
     if spd then
         config.flySpeed = math.clamp(math.floor(spd), 1, 500)
         if speedInputBox then
             speedInputBox.Text = tostring(config.flySpeed)
         end
-        -- Обновить слайдер визуально
         if sliderFill and sliderThumb then
             local SLIDER_MIN, SLIDER_MAX = 10, 200
             local rel = math.clamp((config.flySpeed - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN), 0, 1)
@@ -1066,11 +1008,12 @@ local function applyLoadedSettings()
         end
     end
 
-    -- Бинды действий
     local bindFields = {
         {field = "bindFly",      key = "fly"},
         {field = "bindNoclip",   key = "noclip"},
         {field = "bindUnfollow", key = "unfollow"},
+        {field = "bindEsp",      key = "esp"},
+        {field = "bindMenu",     key = "menu"},
     }
     for _, b in ipairs(bindFields) do
         local kc = toKeyCode(result[b.field])
@@ -1106,7 +1049,7 @@ versionFrame.Parent = content
 local versionLabel = Instance.new("TextLabel")
 versionLabel.Size = UDim2.new(1, 0, 1, 0)
 versionLabel.BackgroundTransparency = 1
-versionLabel.Text = "v1.2.4"
+versionLabel.Text = "v1.2.5"  -- fix: ESP declare order + menu bind gameProcessed
 versionLabel.TextColor3 = Color3.fromRGB(100, 100, 130)
 versionLabel.TextSize = 11
 versionLabel.Font = Enum.Font.GothamBold
@@ -1117,7 +1060,7 @@ local creditsFrame = Instance.new("Frame")
 creditsFrame.Size = UDim2.new(1, 0, 0, 34)
 creditsFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 40)
 creditsFrame.BorderSizePixel = 0
-creditsFrame.LayoutOrder = 12
+creditsFrame.LayoutOrder = 120
 creditsFrame.Parent = content
 Instance.new("UICorner", creditsFrame).CornerRadius = UDim.new(0, 8)
 
@@ -1144,7 +1087,6 @@ creditsLabel.Parent = creditsFrame
 -- === ОБРАБОТКА КЛАВИШ ===
 -- ===============================
 
--- Клавиши, которые НЕ назначаются (служебные)
 local blockedKeys = {
     [Enum.KeyCode.Escape]    = true,
     [Enum.KeyCode.Return]    = true,
@@ -1155,11 +1097,10 @@ local blockedKeys = {
 }
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    -- Режим назначения бинда
+    -- Режим назначения бинда — обрабатываем всегда
     if listeningFor then
         local kc = input.KeyCode
         if kc == Enum.KeyCode.Escape then
-            -- Escape — отменить назначение
             local btn = bindKeyLabels[listeningFor]
             if btn then
                 btn.Text = keyName(binds[listeningFor])
@@ -1169,7 +1110,6 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
             end
             listeningFor = nil
         elseif not blockedKeys[kc] and kc ~= Enum.KeyCode.Unknown then
-            -- Назначаем новый бинд
             binds[listeningFor] = kc
             local btn = bindKeyLabels[listeningFor]
             if btn then
@@ -1183,15 +1123,14 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         return
     end
 
-    if gameProcessed then return end
-
-    -- Бинд меню (Shift + key)
+    -- FIX: бинд меню работает всегда, даже когда TextBox в фокусе (gameProcessed = true)
     if input.KeyCode == binds.menu then
         toggleMenu()
         return
     end
 
-    -- Обычные бинды
+    if gameProcessed then return end
+
     if input.KeyCode == binds.fly then
         flyToggle()
     elseif input.KeyCode == binds.noclip then
@@ -1203,4 +1142,4 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
-print("💤 DreamCheats загружен! | Бинды можно изменить в меню")
+print("💤 DreamCheats v1.2.5 загружен! | Бинды можно изменить в меню")
