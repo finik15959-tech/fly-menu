@@ -7,49 +7,68 @@ local TweenService = game:GetService("TweenService")
 local localPlayer = Players.LocalPlayer
 
 -- === СОХРАНЕНИЕ НАСТРОЕК ===
-local SAVE_FILE = "DreamCheats_settings.json"
+local SAVE_FILE = "DreamCheats_settings.txt"
+
+-- Простая сериализация без HttpService
+local function serialize(data)
+    local parts = {}
+    for k, v in pairs(data) do
+        table.insert(parts, tostring(k) .. "=" .. tostring(v))
+    end
+    return table.concat(parts, "\n")
+end
+
+local function deserialize(raw)
+    local result = {}
+    for line in raw:gmatch("[^\n]+") do
+        local k, v = line:match("^(.-)=(.+)$")
+        if k and v then
+            result[k] = v
+        end
+    end
+    return result
+end
+
+local function toKeyCode(str)
+    if not str then return nil end
+    local name = str:match("Enum%.KeyCode%.(.+)") or str
+    local ok2, kc = pcall(function() return Enum.KeyCode[name] end)
+    return (ok2 and kc) or nil
+end
 
 local function saveSettings()
-    local data = {
-        flySpeed    = config.flySpeed,
-        bindFly     = tostring(binds.fly),
-        bindNoclip  = tostring(binds.noclip),
-        bindUnfollow = tostring(binds.unfollow),
-        bindMenuKey = tostring(menuBind.key),
-    }
-    local ok, err = pcall(function()
-        writefile(SAVE_FILE, game:GetService("HttpService"):JSONEncode(data))
+    pcall(function()
+        local data = {
+            flySpeed     = config.flySpeed,
+            bindFly      = tostring(binds.fly),
+            bindNoclip   = tostring(binds.noclip),
+            bindUnfollow = tostring(binds.unfollow),
+            bindMenuKey  = tostring(menuBind.key),
+        }
+        writefile(SAVE_FILE, serialize(data))
     end)
 end
 
 local function loadSettings()
-    local ok, result = pcall(function()
+    local ok, raw = pcall(function()
         if isfile(SAVE_FILE) then
-            local raw = readfile(SAVE_FILE)
-            return game:GetService("HttpService"):JSONDecode(raw)
+            return readfile(SAVE_FILE)
         end
     end)
-    if ok and result then
-        -- Скорость
-        if type(result.flySpeed) == "number" then
-            config.flySpeed = math.clamp(math.floor(result.flySpeed), 1, 500)
-        end
-        -- Бинды — конвертируем строку обратно в KeyCode
-        local function toKeyCode(str)
-            if not str then return nil end
-            local name = str:match("Enum%.KeyCode%.(.+)") or str
-            local ok2, kc = pcall(function() return Enum.KeyCode[name] end)
-            return (ok2 and kc) or nil
-        end
-        binds.fly      = toKeyCode(result.bindFly)      or binds.fly
-        binds.noclip   = toKeyCode(result.bindNoclip)   or binds.noclip
-        binds.unfollow = toKeyCode(result.bindUnfollow) or binds.unfollow
-        menuBind.key   = toKeyCode(result.bindMenuKey)  or menuBind.key
+    if not ok or not raw then return end
+    local result = deserialize(raw)
+
+    local spd = tonumber(result.flySpeed)
+    if spd then
+        config.flySpeed = math.clamp(math.floor(spd), 1, 500)
     end
+    binds.fly      = toKeyCode(result.bindFly)      or binds.fly
+    binds.noclip   = toKeyCode(result.bindNoclip)   or binds.noclip
+    binds.unfollow = toKeyCode(result.bindUnfollow) or binds.unfollow
+    menuBind.key   = toKeyCode(result.bindMenuKey)  or menuBind.key
 end
 
--- Загрузить при старте
-loadSettings()
+-- Авто-загрузка отключена. Используй кнопку 📂 Загрузить в меню
 
 -- === НАСТРОЙКИ ===
 local config = {
@@ -387,7 +406,6 @@ local function makeSpeedControl(order)
             speedInputBox.Text = tostring(val)
             fill.Size = UDim2.new(rel, 0, 1, 0)
             thumb.Position = UDim2.new(rel, -7, 0.5, -7)
-            saveSettings()
         end
     end)
 
@@ -398,7 +416,6 @@ local function makeSpeedControl(order)
             config.flySpeed = val
             speedInputBox.Text = tostring(val)
             updateSliderVisual(val)
-            saveSettings()
         else
             speedInputBox.Text = tostring(config.flySpeed)
         end
@@ -982,7 +999,7 @@ saveBtn.MouseButton1Click:Connect(function()
             bindUnfollow = tostring(binds.unfollow),
             bindMenuKey  = tostring(menuBind.key),
         }
-        writefile(SAVE_FILE, game:GetService("HttpService"):JSONEncode(data))
+        writefile(SAVE_FILE, serialize(data))
     end)
     if ok then
         TweenService:Create(saveBtn, TweenInfo.new(0.1), {BackgroundColor3 = Color3.fromRGB(40, 200, 100)}):Play()
@@ -997,26 +1014,21 @@ end)
 
 -- Логика Load
 local function applyLoadedSettings()
-    local ok, result = pcall(function()
+    local ok, raw = pcall(function()
         if isfile(SAVE_FILE) then
-            return game:GetService("HttpService"):JSONDecode(readfile(SAVE_FILE))
+            return readfile(SAVE_FILE)
         end
     end)
-    if not ok or not result then
+    if not ok or not raw then
         showStatus("✘ Файл не найден", true)
         return
     end
-
-    local function toKeyCode(str)
-        if not str then return nil end
-        local name = str:match("Enum%.KeyCode%.(.+)") or str
-        local ok2, kc = pcall(function() return Enum.KeyCode[name] end)
-        return (ok2 and kc) or nil
-    end
+    local result = deserialize(raw)
 
     -- Скорость
-    if type(result.flySpeed) == "number" then
-        config.flySpeed = math.clamp(math.floor(result.flySpeed), 1, 500)
+    local spd = tonumber(result.flySpeed)
+    if spd then
+        config.flySpeed = math.clamp(math.floor(spd), 1, 500)
         if speedInputBox then
             speedInputBox.Text = tostring(config.flySpeed)
         end
@@ -1132,7 +1144,6 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
                 }):Play()
             end
             listeningFor = nil
-            saveSettings()
         end
         return
     end
@@ -1162,7 +1173,6 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
             }):Play()
             menuBindHint.Text = "Нажмите кнопку, затем любую клавишу"
             listeningMenuBind = false
-            saveSettings()
         end
         return
     end
