@@ -1059,7 +1059,7 @@ versionFrame.Parent = content
 local versionLabel = Instance.new("TextLabel")
 versionLabel.Size = UDim2.new(1, 0, 1, 0)
 versionLabel.BackgroundTransparency = 1
-versionLabel.Text = "v1.2.9"  -- fix: ESP via Highlight (real silhouette outline)
+versionLabel.Text = "v1.3.0"  -- fix: unfollow/esp binds work during flight
 versionLabel.TextColor3 = Color3.fromRGB(100, 100, 130)
 versionLabel.TextSize = 11
 versionLabel.Font = Enum.Font.GothamBold
@@ -1133,9 +1133,17 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         return
     end
 
-    -- FIX: бинд меню работает всегда, даже когда TextBox в фокусе (gameProcessed = true)
+    -- Эти бинды работают всегда — даже во время полёта/движения (когда gameProcessed = true)
     if input.KeyCode == binds.menu then
         toggleMenu()
+        return
+    end
+    if input.KeyCode == binds.unfollow then
+        doStopFollow()
+        return
+    end
+    if input.KeyCode == binds.esp then
+        espToggle()
         return
     end
 
@@ -1145,11 +1153,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
         flyToggle()
     elseif input.KeyCode == binds.noclip then
         noclipToggle()
-    elseif input.KeyCode == binds.unfollow then
-        doStopFollow()
-    elseif input.KeyCode == binds.esp then
-        espToggle()
     end
 end)
 
-print("💤 DreamCheats v1.2.9 загружен! | Бинды можно изменить в меню")
+print("💤 DreamCheats v1.3.0 загружен! | Бинды можно изменить в меню")
