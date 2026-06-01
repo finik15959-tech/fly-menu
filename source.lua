@@ -540,6 +540,7 @@ local function toggleMenu()
 end
 
 -- === UI ЭЛЕМЕНТЫ ===
+local espToggle = function() end  -- upvalue, переопределяется ниже
 
 local greetFrame = Instance.new("Frame")
 greetFrame.Size = UDim2.new(1, 0, 0, 36)
@@ -578,7 +579,7 @@ local _, noclipToggle = makeToggle("Ноуклип", 3, function(state)
     end
 end)
 
-local _ef, _espFn = makeToggle("ESP (бокс + ник)", 4, function(state)
+local _ef, _espFn = makeToggle("ESP (бокс + ник)", 35, function(state)
     espEnabled = state
     if state then enableESP() else disableESP() end
 end)
@@ -814,7 +815,7 @@ local function disableESP()
     espObjects = {}
 end
 
-local espToggle = function() end  -- будет переопределён в UI
+
 
 -- ===============================
 -- === СЕКЦИЯ БИНДОВ (ИЗМЕНЯЕМЫЕ) ===
@@ -1099,7 +1100,7 @@ versionFrame.Parent = content
 local versionLabel = Instance.new("TextLabel")
 versionLabel.Size = UDim2.new(1, 0, 1, 0)
 versionLabel.BackgroundTransparency = 1
-versionLabel.Text = "v1.2.1"
+versionLabel.Text = "v1.2.2"
 versionLabel.TextColor3 = Color3.fromRGB(100, 100, 130)
 versionLabel.TextSize = 11
 versionLabel.Font = Enum.Font.GothamBold
