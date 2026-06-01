@@ -533,14 +533,14 @@ local function createESP(player)
     pFolder.Parent = espFolder
     espPlayerFolders[player.Name] = pFolder
 
-    -- Один SelectionBox на весь Model — белый outline, заливка полностью прозрачная
-    local sb = Instance.new("SelectionBox")
-    sb.Adornee = char
-    sb.Color3 = Color3.fromRGB(255, 255, 255)
-    sb.LineThickness = 0.05
-    sb.SurfaceTransparency = 1        -- без заливки
-    sb.SurfaceColor3 = Color3.fromRGB(255, 255, 255)
-    sb.Parent = pFolder
+    -- Highlight — рисует outline точно по силуэту скина включая аксессуары
+    local hl = Instance.new("Highlight")
+    hl.Adornee = char
+    hl.OutlineColor = Color3.fromRGB(255, 255, 255)  -- белый контур
+    hl.OutlineTransparency = 0                        -- полностью виден
+    hl.FillTransparency = 1                           -- без заливки
+    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    hl.Parent = pFolder
 
     -- Ник над головой
     local bb = Instance.new("BillboardGui")
@@ -1059,7 +1059,7 @@ versionFrame.Parent = content
 local versionLabel = Instance.new("TextLabel")
 versionLabel.Size = UDim2.new(1, 0, 1, 0)
 versionLabel.BackgroundTransparency = 1
-versionLabel.Text = "v1.2.8"  -- fix: ESP white outline, no fill, single box on model
+versionLabel.Text = "v1.2.9"  -- fix: ESP via Highlight (real silhouette outline)
 versionLabel.TextColor3 = Color3.fromRGB(100, 100, 130)
 versionLabel.TextSize = 11
 versionLabel.Font = Enum.Font.GothamBold
@@ -1152,4 +1152,4 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
-print("💤 DreamCheats v1.2.8 загружен! | Бинды можно изменить в меню")
+print("💤 DreamCheats v1.2.9 загружен! | Бинды можно изменить в меню")
