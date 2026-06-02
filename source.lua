@@ -6,7 +6,6 @@ local TweenService = game:GetService("TweenService")
 
 local localPlayer = Players.LocalPlayer
 
--- === СОХРАНЕНИЕ НАСТРОЕК ===
 local SAVE_FILE = "DreamCheats_settings.txt"
 
 local function serialize(data)
@@ -21,9 +20,7 @@ local function deserialize(raw)
     local result = {}
     for line in raw:gmatch("[^\n]+") do
         local k, v = line:match("^(.-)=(.+)$")
-        if k and v then
-            result[k] = v
-        end
+        if k and v then result[k] = v end
     end
     return result
 end
@@ -31,11 +28,26 @@ end
 local function toKeyCode(str)
     if not str then return nil end
     local name = str:match("Enum%.KeyCode%.(.+)") or str
-    local ok2, kc = pcall(function() return Enum.KeyCode[name] end)
-    return (ok2 and kc) or nil
+    local ok, kc = pcall(function() return Enum.KeyCode[name] end)
+    return (ok and kc) or nil
 end
 
--- === НАСТРОЙКИ ===
+-- === НАСТРОЙКИ ЦВЕТОВ ESP ===
+local espColors = {
+    normal = {
+        outline = Color3.fromRGB(255, 255, 255),
+        fill    = Color3.fromRGB(255, 255, 255),
+        fillTransparency = 1,
+        text    = Color3.fromRGB(255, 255, 255),
+    },
+    tg = {
+        outline = Color3.fromRGB(255, 180, 0),
+        fill    = Color3.fromRGB(255, 140, 0),
+        fillTransparency = 0.72,
+        text    = Color3.fromRGB(255, 210, 60),
+    },
+}
+
 local config = {
     flySpeed           = 50,
     walkSpeed          = 16,
@@ -50,7 +62,6 @@ local config = {
     jumpHeightEnabled  = false,
 }
 
--- === БИНДЫ (изменяемые) ===
 local binds = {
     fly        = Enum.KeyCode.F5,
     noclip     = Enum.KeyCode.F6,
@@ -66,20 +77,23 @@ local function keyName(kc)
     return s:match("KeyCode%.(.+)") or s
 end
 
--- Проверка TG-игрока (любой регистр: tg_, TG_, Tg_ и т.д.)
+-- Проверка TG по Name И DisplayName
 local function isTGPlayer(player)
-    return player.Name:lower():sub(1, 3) == "tg_"
+    local nameLow = player.Name:lower()
+    local dispLow = player.DisplayName:lower()
+    return nameLow:find("tg_", 1, true) ~= nil
+        or dispLow:find("tg_", 1, true) ~= nil
 end
 
--- === СОЗДАНИЕ GUI ===
+-- === GUI ===
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "DreamCheats"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = game.CoreGui
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 280, 0, 620)
-mainFrame.Position = UDim2.new(0, 20, 0.5, -310)
+mainFrame.Size = UDim2.new(0, 280, 0, 680)
+mainFrame.Position = UDim2.new(0, 20, 0.5, -340)
 mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
 mainFrame.BorderSizePixel = 0
 mainFrame.ClipsDescendants = true
@@ -169,7 +183,7 @@ bottomPad.BackgroundTransparency = 1
 bottomPad.LayoutOrder = 999
 bottomPad.Parent = content
 
--- === ФУНКЦИИ UI ===
+-- === UI ФУНКЦИИ ===
 local function makeLabel(text, parent, order)
     local l = Instance.new("TextLabel")
     l.Size = UDim2.new(1, 0, 0, 18)
@@ -221,7 +235,6 @@ local function makeToggle(labelText, order, callback)
     Instance.new("UICorner", circle).CornerRadius = UDim.new(1, 0)
 
     local state = false
-
     local function setState(newState)
         state = newState
         TweenService:Create(toggleBg, TweenInfo.new(0.2), {
@@ -238,10 +251,7 @@ local function makeToggle(labelText, order, callback)
     btn.BackgroundTransparency = 1
     btn.Text = ""
     btn.Parent = frame
-
-    btn.MouseButton1Click:Connect(function()
-        setState(not state)
-    end)
+    btn.MouseButton1Click:Connect(function() setState(not state) end)
 
     return frame, function() setState(not state) end
 end
@@ -394,28 +404,22 @@ local function makeSliderControl(params)
 end
 
 local function makeSpeedControl(order)
-    local SLIDER_MIN = 10
-    local SLIDER_MAX = 200
-    local INPUT_MAX = 500
-
     local s = makeSliderControl({
         label       = "Скорость полёта",
         order       = order,
-        sliderMin   = SLIDER_MIN,
-        sliderMax   = SLIDER_MAX,
-        inputMax    = INPUT_MAX,
+        sliderMin   = 10,
+        sliderMax   = 200,
+        inputMax    = 500,
         initVal     = config.flySpeed,
         accentColor = Color3.fromRGB(100, 60, 220),
-        onChanged   = function(val)
-            config.flySpeed = val
-        end,
+        onChanged   = function(val) config.flySpeed = val end,
     })
     speedInputBox = s.inputBox
     sliderFill    = s.fill
     sliderThumb   = s.thumb
 end
 
--- === ПОЛЁТ ЛОГИКА ===
+-- === ПОЛЁТ ===
 local bodyVelocity, bodyGyro
 
 local function unfreezeChar()
@@ -513,7 +517,7 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- === ОТКРЫТИЕ/ЗАКРЫТИЕ МЕНЮ ===
+-- === МЕНЮ ===
 local menuVisible = true
 
 local function toggleMenu()
@@ -522,22 +526,17 @@ local function toggleMenu()
         mainFrame.Visible = true
         mainFrame.Size = UDim2.new(0, 0, 0, 0)
         TweenService:Create(mainFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-            Size = UDim2.new(0, 280, 0, 620),
+            Size = UDim2.new(0, 280, 0, 680),
         }):Play()
     else
         TweenService:Create(mainFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
             Size = UDim2.new(0, 0, 0, 0),
         }):Play()
-        task.delay(0.21, function()
-            mainFrame.Visible = false
-        end)
+        task.delay(0.21, function() mainFrame.Visible = false end)
     end
 end
 
--- ===============================
 -- === ESP ===
--- ===============================
-
 local espEnabled = false
 local espFolder = nil
 local espPlayerFolders = {}
@@ -559,68 +558,50 @@ local function createESP(player)
     if not hrp then return end
 
     local tg = isTGPlayer(player)
+    local colors = tg and espColors.tg or espColors.normal
 
-    -- Папка под игрока
     local pFolder = Instance.new("Folder")
     pFolder.Name = "PESP_" .. player.Name
     pFolder.Parent = espFolder
     espPlayerFolders[player.Name] = pFolder
 
-    -- Highlight
     local hl = Instance.new("Highlight")
     hl.Adornee = char
     hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-
-    if tg then
-        -- TG-игрок: золотой/оранжевый контур + лёгкая заливка
-        hl.OutlineColor = Color3.fromRGB(255, 180, 0)
-        hl.OutlineTransparency = 0
-        hl.FillColor = Color3.fromRGB(255, 140, 0)
-        hl.FillTransparency = 0.72
-    else
-        -- Обычный: белый контур, без заливки
-        hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-        hl.OutlineTransparency = 0
-        hl.FillTransparency = 1
-    end
-
+    hl.OutlineColor = colors.outline
+    hl.OutlineTransparency = 0
+    hl.FillColor = colors.fill
+    hl.FillTransparency = colors.fillTransparency
     hl.Parent = pFolder
 
-    -- BillboardGui над головой
+    -- BillboardGui: DisplayName (@username)
     local bb = Instance.new("BillboardGui")
     bb.Name = "BB_" .. player.Name
     bb.Adornee = hrp
-    bb.Size = UDim2.new(0, 150, 0, tg and 44 or 26)
+    bb.Size = UDim2.new(0, 180, 0, 26)
     bb.StudsOffset = Vector3.new(0, 3.5, 0)
     bb.AlwaysOnTop = true
     bb.ResetOnSpawn = false
     bb.Parent = pFolder
 
-    -- DisplayName (основная строка)
     local nameLabel = Instance.new("TextLabel")
-    nameLabel.Size = UDim2.new(1, 0, tg and 0.55 or 1, 0)
+    nameLabel.Size = UDim2.new(1, 0, 1, 0)
     nameLabel.BackgroundTransparency = 1
-    nameLabel.Text = player.DisplayName
-    nameLabel.TextColor3 = tg and Color3.fromRGB(255, 210, 60) or Color3.fromRGB(255, 255, 255)
+    nameLabel.Text = player.DisplayName .. " (@" .. player.Name .. ")"
+    nameLabel.TextColor3 = colors.text
     nameLabel.TextStrokeTransparency = 0
     nameLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
     nameLabel.TextSize = 13
     nameLabel.Font = Enum.Font.GothamBold
     nameLabel.Parent = bb
+end
 
-    -- Для TG — вторая строка с оригинальным username
-    if tg then
-        local tgLabel = Instance.new("TextLabel")
-        tgLabel.Size = UDim2.new(1, 0, 0.45, 0)
-        tgLabel.Position = UDim2.new(0, 0, 0.55, 0)
-        tgLabel.BackgroundTransparency = 1
-        tgLabel.Text = "📡 " .. player.Name
-        tgLabel.TextColor3 = Color3.fromRGB(255, 150, 30)
-        tgLabel.TextStrokeTransparency = 0
-        tgLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-        tgLabel.TextSize = 10
-        tgLabel.Font = Enum.Font.GothamBold
-        tgLabel.Parent = bb
+local function refreshAllESP()
+    if not espEnabled then return end
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= localPlayer then
+            createESP(p)
+        end
     end
 end
 
@@ -653,13 +634,9 @@ local function enableESP()
 end
 
 local function disableESP()
-    if espFolder and espFolder.Parent then
-        espFolder:Destroy()
-    end
+    if espFolder and espFolder.Parent then espFolder:Destroy() end
     espFolder = nil
-    for k in pairs(espPlayerFolders) do
-        espPlayerFolders[k] = nil
-    end
+    for k in pairs(espPlayerFolders) do espPlayerFolders[k] = nil end
 end
 
 -- === UI ЭЛЕМЕНТЫ ===
@@ -710,7 +687,7 @@ espToggle = _espFn
 
 makeSpeedControl(5)
 
--- WalkSpeed слайдер + тоггл
+-- WalkSpeed
 do
     local s = makeSliderControl({
         label       = "Скорость ходьбы",
@@ -774,9 +751,7 @@ do
         wStatusLbl.TextColor3 = state and Color3.fromRGB(60, 180, 120) or Color3.fromRGB(140, 140, 160)
         local char = localPlayer.Character
         local hum = char and char:FindFirstChildOfClass("Humanoid")
-        if hum then
-            hum.WalkSpeed = state and config.walkSpeed or 16
-        end
+        if hum then hum.WalkSpeed = state and config.walkSpeed or 16 end
     end
 
     _G.setWalkToggle = setWalkToggle
@@ -788,9 +763,7 @@ do
     wBtn.Text = ""
     wBtn.ZIndex = 6
     wBtn.Parent = wToggleBg
-    wBtn.MouseButton1Click:Connect(function()
-        setWalkToggle(not config.walkSpeedEnabled)
-    end)
+    wBtn.MouseButton1Click:Connect(function() setWalkToggle(not config.walkSpeedEnabled) end)
 
     localPlayer.CharacterAdded:Connect(function(char)
         local hum = char:WaitForChild("Humanoid", 5)
@@ -798,7 +771,7 @@ do
     end)
 end
 
--- JumpHeight слайдер + тоггл
+-- JumpHeight
 do
     local s = makeSliderControl({
         label       = "Высота прыжка",
@@ -813,10 +786,7 @@ do
             if config.jumpHeightEnabled then
                 local char = localPlayer.Character
                 local hum = char and char:FindFirstChildOfClass("Humanoid")
-                if hum then
-                    hum.JumpHeight = val
-                    hum.JumpPower  = val
-                end
+                if hum then hum.JumpHeight = val; hum.JumpPower = val end
             end
         end,
     })
@@ -880,9 +850,7 @@ do
     jBtn.Text = ""
     jBtn.ZIndex = 6
     jBtn.Parent = jToggleBg
-    jBtn.MouseButton1Click:Connect(function()
-        setJumpToggle(not config.jumpHeightEnabled)
-    end)
+    jBtn.MouseButton1Click:Connect(function() setJumpToggle(not config.jumpHeightEnabled) end)
 
     localPlayer.CharacterAdded:Connect(function(char)
         local hum = char:WaitForChild("Humanoid", 5)
@@ -894,16 +862,154 @@ do
 end
 
 -- ===============================
+-- === СЕКЦИЯ ЦВЕТОВ ESP ===
+-- ===============================
+
+makeLabel("— Цвета ESP", content, 15)
+
+-- Вспомогательная функция: создаёт строку с RGB полями
+local function makeColorRow(labelText, order, getColor, setColor, onChange)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, 46)
+    frame.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+    frame.BorderSizePixel = 0
+    frame.LayoutOrder = order
+    frame.Parent = content
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
+
+    -- Подпись
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, -12, 0, 20)
+    lbl.Position = UDim2.new(0, 10, 0, 4)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = labelText
+    lbl.TextColor3 = Color3.fromRGB(200, 200, 220)
+    lbl.TextSize = 12
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = frame
+
+    -- Превью цвета
+    local preview = Instance.new("Frame")
+    preview.Size = UDim2.new(0, 22, 0, 22)
+    preview.Position = UDim2.new(1, -28, 0, 12)
+    preview.BackgroundColor3 = getColor()
+    preview.BorderSizePixel = 0
+    preview.Parent = frame
+    Instance.new("UICorner", preview).CornerRadius = UDim.new(0, 4)
+
+    -- Три поля R G B
+    local c = getColor()
+    local rVal = math.floor(c.R * 255)
+    local gVal = math.floor(c.G * 255)
+    local bVal = math.floor(c.B * 255)
+
+    local function makeRGBBox(placeholder, initVal, xOffset)
+        local bg = Instance.new("Frame")
+        bg.Size = UDim2.new(0, 46, 0, 20)
+        bg.Position = UDim2.new(0, xOffset, 0, 22)
+        bg.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
+        bg.BorderSizePixel = 0
+        bg.Parent = frame
+        Instance.new("UICorner", bg).CornerRadius = UDim.new(0, 5)
+
+        local box = Instance.new("TextBox")
+        box.Size = UDim2.new(1, -6, 1, 0)
+        box.Position = UDim2.new(0, 3, 0, 0)
+        box.BackgroundTransparency = 1
+        box.Text = tostring(initVal)
+        box.PlaceholderText = placeholder
+        box.PlaceholderColor3 = Color3.fromRGB(100, 100, 120)
+        box.TextColor3 = Color3.fromRGB(220, 220, 240)
+        box.TextSize = 12
+        box.Font = Enum.Font.GothamBold
+        box.TextXAlignment = Enum.TextXAlignment.Center
+        box.ClearTextOnFocus = false
+        box.Parent = bg
+        return box
+    end
+
+    local rBox = makeRGBBox("R", rVal, 10)
+    local gBox = makeRGBBox("G", gVal, 62)
+    local bBox = makeRGBBox("B", bVal, 114)
+
+    -- Метки R G B
+    for i, lbTxt in ipairs({"R", "G", "B"}) do
+        local ml = Instance.new("TextLabel")
+        ml.Size = UDim2.new(0, 12, 0, 20)
+        ml.Position = UDim2.new(0, 10 + (i-1)*52 - 2, 0, 22)
+        ml.BackgroundTransparency = 1
+        ml.Text = lbTxt
+        ml.TextColor3 = Color3.fromRGB(140, 140, 180)
+        ml.TextSize = 10
+        ml.Font = Enum.Font.GothamBold
+        ml.Parent = frame
+    end
+
+    local function applyColor()
+        local r = math.clamp(tonumber(rBox.Text) or 0, 0, 255)
+        local g = math.clamp(tonumber(gBox.Text) or 0, 0, 255)
+        local b = math.clamp(tonumber(bBox.Text) or 0, 0, 255)
+        rBox.Text = tostring(r)
+        gBox.Text = tostring(g)
+        bBox.Text = tostring(b)
+        local newColor = Color3.fromRGB(r, g, b)
+        setColor(newColor)
+        preview.BackgroundColor3 = newColor
+        if onChange then onChange() end
+    end
+
+    rBox.FocusLost:Connect(applyColor)
+    gBox.FocusLost:Connect(applyColor)
+    bBox.FocusLost:Connect(applyColor)
+end
+
+-- Обычные игроки — цвет контура
+makeColorRow("Обычный — контур", 16,
+    function() return espColors.normal.outline end,
+    function(c) espColors.normal.outline = c end,
+    refreshAllESP
+)
+
+-- Обычные игроки — цвет текста
+makeColorRow("Обычный — текст ника", 17,
+    function() return espColors.normal.text end,
+    function(c) espColors.normal.text = c end,
+    refreshAllESP
+)
+
+-- TG игроки — цвет контура
+makeColorRow("TG — контур", 18,
+    function() return espColors.tg.outline end,
+    function(c) espColors.tg.outline = c end,
+    refreshAllESP
+)
+
+-- TG игроки — цвет заливки
+makeColorRow("TG — заливка", 19,
+    function() return espColors.tg.fill end,
+    function(c) espColors.tg.fill = c end,
+    refreshAllESP
+)
+
+-- TG игроки — цвет текста
+makeColorRow("TG — текст ника", 20,
+    function() return espColors.tg.text end,
+    function(c) espColors.tg.text = c end,
+    refreshAllESP
+)
+
+-- ===============================
 -- === СЕКЦИЯ ПРЕСЛЕДОВАНИЯ ===
 -- ===============================
 
-makeLabel("— Преследование", content, 8)
+makeLabel("— Преследование", content, 21)
 
 local searchFrame = Instance.new("Frame")
 searchFrame.Size = UDim2.new(1, 0, 0, 36)
 searchFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
 searchFrame.BorderSizePixel = 0
-searchFrame.LayoutOrder = 9
+searchFrame.LayoutOrder = 22
 searchFrame.Parent = content
 Instance.new("UICorner", searchFrame).CornerRadius = UDim.new(0, 8)
 
@@ -935,7 +1041,7 @@ local playersFrame = Instance.new("Frame")
 playersFrame.Size = UDim2.new(1, 0, 0, 120)
 playersFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
 playersFrame.BorderSizePixel = 0
-playersFrame.LayoutOrder = 10
+playersFrame.LayoutOrder = 23
 playersFrame.Parent = content
 Instance.new("UICorner", playersFrame).CornerRadius = UDim.new(0, 8)
 
@@ -968,7 +1074,6 @@ local function refreshPlayers()
         if p ~= localPlayer then
             local displayName = p.DisplayName
             local userName    = p.Name
-            -- Поиск работает и по DisplayName, и по Username
             local searchTarget = (displayName .. " " .. userName):lower()
 
             if searchQuery == "" or searchTarget:find(searchQuery:lower(), 1, true) then
@@ -980,8 +1085,7 @@ local function refreshPlayers()
                 btn.Size = UDim2.new(1, -6, 0, 30)
                 btn.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
                 btn.BorderSizePixel = 0
-                -- Показываем DisplayName + (@username)
-                btn.Text = "  " .. icon .. "  " .. displayName .. "  (@" .. userName .. ")"
+                btn.Text = "  " .. icon .. "  " .. displayName .. " (@" .. userName .. ")"
                 btn.TextColor3 = tg and Color3.fromRGB(255, 210, 80) or Color3.fromRGB(220, 220, 240)
                 btn.TextSize = 12
                 btn.Font = Enum.Font.Gotham
@@ -1027,7 +1131,7 @@ stopBtn.Text = "Остановить преследование"
 stopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 stopBtn.TextSize = 13
 stopBtn.Font = Enum.Font.GothamBold
-stopBtn.LayoutOrder = 11
+stopBtn.LayoutOrder = 24
 stopBtn.Parent = content
 Instance.new("UICorner", stopBtn).CornerRadius = UDim.new(0, 8)
 
@@ -1047,7 +1151,7 @@ stopBtn.MouseButton1Click:Connect(doStopFollow)
 -- === СЕКЦИЯ БИНДОВ ===
 -- ===============================
 
-makeLabel("— Бинды", content, 12)
+makeLabel("— Бинды", content, 25)
 
 local listeningFor = nil
 local bindKeyLabels = {}
@@ -1056,7 +1160,7 @@ local bindsContainer = Instance.new("Frame")
 bindsContainer.Size = UDim2.new(1, 0, 0, 272)
 bindsContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
 bindsContainer.BorderSizePixel = 0
-bindsContainer.LayoutOrder = 13
+bindsContainer.LayoutOrder = 26
 bindsContainer.Parent = content
 Instance.new("UICorner", bindsContainer).CornerRadius = UDim.new(0, 8)
 
@@ -1123,24 +1227,18 @@ local function makeBindRow(data)
         if listeningFor == data.key then
             listeningFor = nil
             keyBtn.Text = keyName(binds[data.key])
-            TweenService:Create(keyBtn, TweenInfo.new(0.15), {
-                BackgroundColor3 = Color3.fromRGB(100, 60, 220)
-            }):Play()
+            TweenService:Create(keyBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(100, 60, 220)}):Play()
         else
             if listeningFor then
                 local oldBtn = bindKeyLabels[listeningFor]
                 if oldBtn then
                     oldBtn.Text = keyName(binds[listeningFor])
-                    TweenService:Create(oldBtn, TweenInfo.new(0.15), {
-                        BackgroundColor3 = Color3.fromRGB(100, 60, 220)
-                    }):Play()
+                    TweenService:Create(oldBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(100, 60, 220)}):Play()
                 end
             end
             listeningFor = data.key
             keyBtn.Text = "..."
-            TweenService:Create(keyBtn, TweenInfo.new(0.15), {
-                BackgroundColor3 = Color3.fromRGB(220, 160, 30)
-            }):Play()
+            TweenService:Create(keyBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(220, 160, 30)}):Play()
         end
     end)
 
@@ -1166,11 +1264,11 @@ hintLbl.TextColor3 = Color3.fromRGB(110, 110, 140)
 hintLbl.TextSize = 11
 hintLbl.Font = Enum.Font.Gotham
 hintLbl.TextXAlignment = Enum.TextXAlignment.Center
-hintLbl.LayoutOrder = 14
+hintLbl.LayoutOrder = 27
 hintLbl.Parent = content
 
 -- ===============================
--- === КНОПКИ SAVE / LOAD ===
+-- === SAVE / LOAD ===
 -- ===============================
 
 local saveStatusLbl = Instance.new("TextLabel")
@@ -1186,12 +1284,8 @@ saveStatusLbl.Parent = content
 
 local function showStatus(msg, isError)
     saveStatusLbl.Text = msg
-    saveStatusLbl.TextColor3 = isError
-        and Color3.fromRGB(220, 80, 80)
-        or  Color3.fromRGB(100, 220, 130)
-    task.delay(2.5, function()
-        saveStatusLbl.Text = ""
-    end)
+    saveStatusLbl.TextColor3 = isError and Color3.fromRGB(220, 80, 80) or Color3.fromRGB(100, 220, 130)
+    task.delay(2.5, function() saveStatusLbl.Text = "" end)
 end
 
 local saveBtnsFrame = Instance.new("Frame")
@@ -1225,16 +1319,30 @@ loadBtn.Font = Enum.Font.GothamBold
 loadBtn.Parent = saveBtnsFrame
 Instance.new("UICorner", loadBtn).CornerRadius = UDim.new(0, 8)
 
+local function colorToStr(c)
+    return math.floor(c.R*255).."_"..math.floor(c.G*255).."_"..math.floor(c.B*255)
+end
+local function strToColor(s)
+    local r,g,b = s:match("(%d+)_(%d+)_(%d+)")
+    if r then return Color3.fromRGB(tonumber(r),tonumber(g),tonumber(b)) end
+    return nil
+end
+
 local function serializeSettings()
     return {
-        flySpeed       = config.flySpeed,
-        bindFly        = tostring(binds.fly),
-        bindNoclip     = tostring(binds.noclip),
-        bindUnfollow   = tostring(binds.unfollow),
-        bindEsp        = tostring(binds.esp),
-        bindMenu       = tostring(binds.menu),
-        bindWalkSpeed  = tostring(binds.walkSpeed),
-        bindJumpHeight = tostring(binds.jumpHeight),
+        flySpeed              = config.flySpeed,
+        bindFly               = tostring(binds.fly),
+        bindNoclip            = tostring(binds.noclip),
+        bindUnfollow          = tostring(binds.unfollow),
+        bindEsp               = tostring(binds.esp),
+        bindMenu              = tostring(binds.menu),
+        bindWalkSpeed         = tostring(binds.walkSpeed),
+        bindJumpHeight        = tostring(binds.jumpHeight),
+        espNormalOutline      = colorToStr(espColors.normal.outline),
+        espNormalText         = colorToStr(espColors.normal.text),
+        espTgOutline          = colorToStr(espColors.tg.outline),
+        espTgFill             = colorToStr(espColors.tg.fill),
+        espTgText             = colorToStr(espColors.tg.text),
     }
 end
 
@@ -1255,57 +1363,27 @@ end)
 
 local function applyLoadedSettings()
     local ok, raw = pcall(function()
-        if isfile(SAVE_FILE) then
-            return readfile(SAVE_FILE)
-        end
+        if isfile(SAVE_FILE) then return readfile(SAVE_FILE) end
     end)
-    if not ok or not raw then
-        showStatus("✘ Файл не найден", true)
-        return
-    end
+    if not ok or not raw then showStatus("✘ Файл не найден", true) return end
     local result = deserialize(raw)
 
     local spd = tonumber(result.flySpeed)
     if spd then
         config.flySpeed = math.clamp(math.floor(spd), 1, 500)
-        if speedInputBox then
-            speedInputBox.Text = tostring(config.flySpeed)
-        end
+        if speedInputBox then speedInputBox.Text = tostring(config.flySpeed) end
         if sliderFill and sliderThumb then
-            local SLIDER_MIN, SLIDER_MAX = 10, 200
-            local rel = math.clamp((config.flySpeed - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN), 0, 1)
+            local rel = math.clamp((config.flySpeed - 10) / (200 - 10), 0, 1)
             sliderFill.Size = UDim2.new(rel, 0, 1, 0)
             sliderThumb.Position = UDim2.new(rel, -7, 0.5, -7)
         end
     end
 
-    local ws = tonumber(result.walkSpeed)
-    if ws then
-        config.walkSpeed = math.clamp(math.floor(ws), 1, 300)
-        local char = localPlayer.Character
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
-        if hum then hum.WalkSpeed = config.walkSpeed end
-    end
-
-    local jh = tonumber(result.jumpHeight)
-    if jh then
-        config.jumpHeight = math.clamp(math.floor(jh), 0, 300)
-        local char = localPlayer.Character
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
-        if hum then
-            hum.JumpHeight = config.jumpHeight
-            hum.JumpPower  = config.jumpHeight
-        end
-    end
-
     local bindFields = {
-        {field = "bindFly",        key = "fly"},
-        {field = "bindNoclip",     key = "noclip"},
-        {field = "bindUnfollow",   key = "unfollow"},
-        {field = "bindEsp",        key = "esp"},
-        {field = "bindMenu",       key = "menu"},
-        {field = "bindWalkSpeed",  key = "walkSpeed"},
-        {field = "bindJumpHeight", key = "jumpHeight"},
+        {field="bindFly",key="fly"},{field="bindNoclip",key="noclip"},
+        {field="bindUnfollow",key="unfollow"},{field="bindEsp",key="esp"},
+        {field="bindMenu",key="menu"},{field="bindWalkSpeed",key="walkSpeed"},
+        {field="bindJumpHeight",key="jumpHeight"},
     }
     for _, b in ipairs(bindFields) do
         local kc = toKeyCode(result[b.field])
@@ -1315,6 +1393,22 @@ local function applyLoadedSettings()
             if btn then btn.Text = keyName(kc) end
         end
     end
+
+    -- Загрузка цветов ESP
+    local colorFields = {
+        {field="espNormalOutline", tbl=espColors.normal, key="outline"},
+        {field="espNormalText",    tbl=espColors.normal, key="text"},
+        {field="espTgOutline",     tbl=espColors.tg,     key="outline"},
+        {field="espTgFill",        tbl=espColors.tg,     key="fill"},
+        {field="espTgText",        tbl=espColors.tg,     key="text"},
+    }
+    for _, cf in ipairs(colorFields) do
+        if result[cf.field] then
+            local c = strToColor(result[cf.field])
+            if c then cf.tbl[cf.key] = c end
+        end
+    end
+    if espEnabled then refreshAllESP() end
 
     showStatus("✔ Настройки загружены!", false)
 end
@@ -1341,7 +1435,7 @@ versionFrame.Parent = content
 local versionLabel = Instance.new("TextLabel")
 versionLabel.Size = UDim2.new(1, 0, 1, 0)
 versionLabel.BackgroundTransparency = 1
-versionLabel.Text = "v1.6.0"
+versionLabel.Text = "v1.7.0"
 versionLabel.TextColor3 = Color3.fromRGB(100, 100, 130)
 versionLabel.TextSize = 11
 versionLabel.Font = Enum.Font.GothamBold
@@ -1395,9 +1489,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
             local btn = bindKeyLabels[listeningFor]
             if btn then
                 btn.Text = keyName(binds[listeningFor])
-                TweenService:Create(btn, TweenInfo.new(0.15), {
-                    BackgroundColor3 = Color3.fromRGB(100, 60, 220)
-                }):Play()
+                TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(100, 60, 220)}):Play()
             end
             listeningFor = nil
         elseif not blockedKeys[kc] and kc ~= Enum.KeyCode.Unknown then
@@ -1405,27 +1497,16 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
             local btn = bindKeyLabels[listeningFor]
             if btn then
                 btn.Text = keyName(kc)
-                TweenService:Create(btn, TweenInfo.new(0.15), {
-                    BackgroundColor3 = Color3.fromRGB(100, 60, 220)
-                }):Play()
+                TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(100, 60, 220)}):Play()
             end
             listeningFor = nil
         end
         return
     end
 
-    if input.KeyCode == binds.menu then
-        toggleMenu()
-        return
-    end
-    if input.KeyCode == binds.unfollow then
-        doStopFollow()
-        return
-    end
-    if input.KeyCode == binds.esp then
-        espToggle()
-        return
-    end
+    if input.KeyCode == binds.menu then toggleMenu() return end
+    if input.KeyCode == binds.unfollow then doStopFollow() return end
+    if input.KeyCode == binds.esp then espToggle() return end
 
     if gameProcessed then return end
 
@@ -1440,4 +1521,4 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
-print("💤 DreamCheats v1.6.0 загружен! | TG-ESP: золотой контур | DisplayName везде | WalkSpeed: F1 | JumpHeight: F2")
+print("💤 DreamCheats v1.7.0 | TG по Name+DisplayName | RGB настройка цветов ESP | DisplayName (@name) везде")
