@@ -37,8 +37,27 @@ local espColors = {
     normal = {
         outline = Color3.fromRGB(255, 255, 255),
         fill    = Color3.fromRGB(255, 255, 255),
-        fillTransparency = 0.72,   -- была 1, теперь полупрозрачная заливка
+        fillTransparency = 0.72,
         text    = Color3.fromRGB(255, 255, 255),
+    },
+    -- Murder Mystery 2 роли
+    mm2_innocent = {
+        outline = Color3.fromRGB(0, 220, 80),
+        fill    = Color3.fromRGB(0, 180, 60),
+        fillTransparency = 0.65,
+        text    = Color3.fromRGB(80, 255, 140),
+    },
+    mm2_murderer = {
+        outline = Color3.fromRGB(255, 30, 30),
+        fill    = Color3.fromRGB(200, 0, 0),
+        fillTransparency = 0.65,
+        text    = Color3.fromRGB(255, 100, 100),
+    },
+    mm2_sheriff = {
+        outline = Color3.fromRGB(60, 140, 255),
+        fill    = Color3.fromRGB(30, 80, 220),
+        fillTransparency = 0.65,
+        text    = Color3.fromRGB(130, 190, 255),
     },
     tg = {
         outline = Color3.fromRGB(255, 180, 0),
@@ -111,6 +130,28 @@ end
 -- Обратная совместимость
 local function isTGPlayer(player)
     return getPlayerType(player) == "tg"
+end
+
+-- === MM2: определение роли по команде ===
+local MM2_GAME_ID = 142823291
+
+local function isInMM2()
+    return game.PlaceId == MM2_GAME_ID
+end
+
+local function getMM2Role(player)
+    -- Команды в MM2: "Innocents", "Murderer", "Sheriff"
+    local team = player.Team
+    if not team then return nil end
+    local tname = team.Name:lower()
+    if tname == "murderer" then
+        return "mm2_murderer"
+    elseif tname == "sheriff" then
+        return "mm2_sheriff"
+    elseif tname == "innocents" then
+        return "mm2_innocent"
+    end
+    return nil
 end
 
 -- === GUI ===
@@ -585,7 +626,13 @@ local function createESP(player)
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
-    local ptype = getPlayerType(player)
+    -- В MM2 приоритет — роль по команде; иначе обычная логика по нику
+    local ptype
+    if isInMM2() then
+        ptype = getMM2Role(player) or getPlayerType(player)
+    else
+        ptype = getPlayerType(player)
+    end
     local colors = espColors[ptype] or espColors.normal
 
     local pFolder = Instance.new("Folder")
@@ -615,7 +662,15 @@ local function createESP(player)
     local nameLabel = Instance.new("TextLabel")
     nameLabel.Size = UDim2.new(1, 0, 1, 0)
     nameLabel.BackgroundTransparency = 1
-    nameLabel.Text = player.DisplayName .. " (@" .. player.Name .. ")"
+    -- В MM2 добавляем метку роли перед ником
+    local roleTag = ""
+    if isInMM2() then
+        if ptype == "mm2_murderer" then roleTag = "🔪 "
+        elseif ptype == "mm2_sheriff" then roleTag = "🔵 "
+        elseif ptype == "mm2_innocent" then roleTag = "🟢 "
+        end
+    end
+    nameLabel.Text = roleTag .. player.DisplayName .. " (@" .. player.Name .. ")"
     nameLabel.TextColor3 = colors.text
     nameLabel.TextStrokeTransparency = 0
     nameLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
@@ -659,6 +714,24 @@ local function enableESP()
     Players.PlayerRemoving:Connect(function(p)
         removeESP(p)
     end)
+
+    -- MM2: обновлять ESP при смене команды (раздача ролей)
+    if isInMM2() then
+        for _, p in pairs(Players:GetPlayers()) do
+            if p ~= localPlayer then
+                p:GetPropertyChangedSignal("Team"):Connect(function()
+                    task.wait(0.1)
+                    if espEnabled then createESP(p) end
+                end)
+            end
+        end
+        Players.PlayerAdded:Connect(function(p)
+            p:GetPropertyChangedSignal("Team"):Connect(function()
+                task.wait(0.1)
+                if espEnabled then createESP(p) end
+            end)
+        end)
+    end
 end
 
 local function disableESP()
@@ -1507,7 +1580,7 @@ versionFrame.Parent = content
 local versionLabel = Instance.new("TextLabel")
 versionLabel.Size = UDim2.new(1, 0, 1, 0)
 versionLabel.BackgroundTransparency = 1
-versionLabel.Text = "v1.7.1"
+versionLabel.Text = "v1.7.2"
 versionLabel.TextColor3 = Color3.fromRGB(100, 100, 130)
 versionLabel.TextSize = 11
 versionLabel.Font = Enum.Font.GothamBold
@@ -1593,4 +1666,4 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
-print("💤 DreamCheats v1.7.1 | Заливка для всех | YT (красный) | TT (чёрный) | RGB цвета ESP")
+print("💤 DreamCheats v1.7.2 | MM2 ESP: Innocent=зелёный, Murderer=красный, Sheriff=синий | Авто-обновление при смене роли")
