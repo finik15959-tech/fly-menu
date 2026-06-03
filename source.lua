@@ -1,4 +1,4 @@
--- DreamCheats GUI Script v1.7.3
+-- DreamCheats GUI Script v1.7.4
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -115,86 +115,50 @@ local function isInMM2()
 end
 
 local function getMM2Role(player)
-    -- Метод 1: через Teams (имя команды)
-    local team = player.Team
-    if team then
-        local tname = team.Name:lower()
-        if tname:find("murderer") or tname:find("убийц") then
-            return "mm2_murderer"
-        elseif tname:find("sheriff") or tname:find("шериф") then
-            return "mm2_sheriff"
-        elseif tname:find("innocent") or tname:find("невинн") then
-            return "mm2_innocent"
-        end
-    end
+    -- По логу: Team=nil у всех, инструменты называются "Knife" и "Gun Tool"
+    -- Ищем инструменты в Backpack И в руках персонажа
 
-    -- Метод 2: через Backpack и Character (наличие инструментов)
-    local function hasToolNamed(container, names)
-        if not container then return false end
+    local function getToolName(container)
+        if not container then return nil end
         for _, obj in pairs(container:GetChildren()) do
-            if obj:IsA("Tool") or obj:IsA("BackpackItem") then
+            if obj:IsA("Tool") then
                 local n = obj.Name:lower()
-                for _, name in ipairs(names) do
-                    if n:find(name) then return true end
+                -- Нож: "knife", "knive", "blade"
+                if n == "knife" or n == "knive" or n:find("knife") or n:find("blade") then
+                    return "mm2_murderer"
+                end
+                -- Пистолет: "gun tool", "gun", "sheriff gun", "revolver"
+                if n == "gun tool" or n == "gun" or n:find("gun") or n:find("revolver") or n:find("sheriff") then
+                    return "mm2_sheriff"
                 end
             end
         end
-        return false
+        return nil
     end
 
-    local bp   = player:FindFirstChildOfClass("Backpack")
+    -- Проверяем Backpack
+    local bp = player:FindFirstChildOfClass("Backpack")
+    local roleFromBP = getToolName(bp)
+    if roleFromBP then return roleFromBP end
+
+    -- Проверяем руки персонажа (экипированный инструмент)
     local char = player.Character
+    local roleFromChar = getToolName(char)
+    if roleFromChar then return roleFromChar end
 
-    local knifeNames = {"knife","кинжал","blade","dagger","mm2knife","knive"}
-    local gunNames   = {"gun","sheriff","pistol","revolver","mm2gun","glock"}
-
-    if hasToolNamed(bp, knifeNames) or hasToolNamed(char, knifeNames) then
-        return "mm2_murderer"
-    elseif hasToolNamed(bp, gunNames) or hasToolNamed(char, gunNames) then
-        return "mm2_sheriff"
-    end
-
-    -- Метод 3: через потомков персонажа (DisplayRef, StringValue и т.п.)
-    if char then
-        for _, desc in pairs(char:GetDescendants()) do
-            local n = desc.Name:lower()
-            if n == "murderer" or n == "killer" or n == "displayrefknife" then
-                return "mm2_murderer"
-            end
-            if n == "sheriff" or n == "cop" or n == "displayrefgun" then
-                return "mm2_sheriff"
-            end
-        end
-    end
-
-    -- Метод 4: по BrickColor команды (MM2 использует стандартные цвета)
-    -- Murderer = Bright red (21), Sheriff = Bright blue (23), Innocent = Bright green (37)
-    if team then
-        local tc = team.TeamColor
-        if tc == BrickColor.new(21) or tc == BrickColor.new("Bright red") then
-            return "mm2_murderer"
-        elseif tc == BrickColor.new(23) or tc == BrickColor.new("Bright blue") then
-            return "mm2_sheriff"
-        elseif tc == BrickColor.new(37) or tc == BrickColor.new("Bright green") then
-            return "mm2_innocent"
-        end
-    end
-
-    -- Определяем идёт ли раунд (есть ли у кого-то роль убийцы/шерифа)
+    -- Нет ни ножа ни пистолета — проверяем идёт ли раунд
+    -- (есть ли хоть у кого-то нож или пистолет)
     local roundActive = false
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= player then
-            local pt = p.Team
-            if pt then
-                local ptn = pt.Name:lower()
-                if ptn:find("murderer") or ptn:find("sheriff") then
-                    roundActive = true
-                    break
-                end
-            end
+            local pbp = p:FindFirstChildOfClass("Backpack")
+            if getToolName(pbp) then roundActive = true break end
+            local pc = p.Character
+            if getToolName(pc) then roundActive = true break end
         end
     end
 
+    -- Если раунд идёт и у игрока нет оружия — он невиновный
     return roundActive and "mm2_innocent" or nil
 end
 
@@ -1693,7 +1657,7 @@ versionFrame.Parent = content
 local versionLabel = Instance.new("TextLabel")
 versionLabel.Size = UDim2.new(1, 0, 1, 0)
 versionLabel.BackgroundTransparency = 1
-versionLabel.Text = "v1.7.3"
+versionLabel.Text = "v1.7.4"
 versionLabel.TextColor3 = Color3.fromRGB(100, 100, 130)
 versionLabel.TextSize = 11
 versionLabel.Font = Enum.Font.GothamBold
@@ -1779,4 +1743,4 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
-print("💤 DreamCheats v1.7.3 | MM2 ESP FIXED: Teams+Backpack+Descendants+TeamColor | Innocent=зелёный, Murderer=красный, Sheriff=синий")
+print("💤 DreamCheats v1.7.4 | MM2 ESP: Knife=красный, Gun Tool=синий, остальные=зелёный | Авто-обновление при смене оружия")
