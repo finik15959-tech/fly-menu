@@ -1,4 +1,4 @@
--- DreamCheats GUI Script v1.6.0
+-- DreamCheats GUI Script v1.7.1
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -37,7 +37,7 @@ local espColors = {
     normal = {
         outline = Color3.fromRGB(255, 255, 255),
         fill    = Color3.fromRGB(255, 255, 255),
-        fillTransparency = 1,
+        fillTransparency = 0.72,   -- была 1, теперь полупрозрачная заливка
         text    = Color3.fromRGB(255, 255, 255),
     },
     tg = {
@@ -45,6 +45,18 @@ local espColors = {
         fill    = Color3.fromRGB(255, 140, 0),
         fillTransparency = 0.72,
         text    = Color3.fromRGB(255, 210, 60),
+    },
+    yt = {
+        outline = Color3.fromRGB(255, 0, 0),
+        fill    = Color3.fromRGB(200, 0, 0),
+        fillTransparency = 0.72,
+        text    = Color3.fromRGB(255, 80, 80),
+    },
+    tt = {
+        outline = Color3.fromRGB(30, 30, 30),
+        fill    = Color3.fromRGB(10, 10, 10),
+        fillTransparency = 0.60,
+        text    = Color3.fromRGB(200, 200, 200),
     },
 }
 
@@ -77,12 +89,28 @@ local function keyName(kc)
     return s:match("KeyCode%.(.+)") or s
 end
 
--- Проверка TG по Name И DisplayName
-local function isTGPlayer(player)
+-- Проверка типа игрока по Name И DisplayName
+local function getPlayerType(player)
     local nameLow = player.Name:lower()
     local dispLow = player.DisplayName:lower()
-    return nameLow:find("tg_", 1, true) ~= nil
-        or dispLow:find("tg_", 1, true) ~= nil
+
+    local function hasPrefix(str, prefix)
+        return str:sub(1, #prefix) == prefix
+    end
+
+    if hasPrefix(nameLow, "tg_") or hasPrefix(dispLow, "tg_") then
+        return "tg"
+    elseif hasPrefix(nameLow, "yt_") or hasPrefix(dispLow, "yt_") then
+        return "yt"
+    elseif hasPrefix(nameLow, "tt_") or hasPrefix(dispLow, "tt_") then
+        return "tt"
+    end
+    return "normal"
+end
+
+-- Обратная совместимость
+local function isTGPlayer(player)
+    return getPlayerType(player) == "tg"
 end
 
 -- === GUI ===
@@ -557,8 +585,8 @@ local function createESP(player)
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
-    local tg = isTGPlayer(player)
-    local colors = tg and espColors.tg or espColors.normal
+    local ptype = getPlayerType(player)
+    local colors = espColors[ptype] or espColors.normal
 
     local pFolder = Instance.new("Folder")
     pFolder.Name = "PESP_" .. player.Name
@@ -867,7 +895,6 @@ end
 
 makeLabel("— Цвета ESP", content, 15)
 
--- Вспомогательная функция: создаёт строку с RGB полями
 local function makeColorRow(labelText, order, getColor, setColor, onChange)
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(1, 0, 0, 46)
@@ -877,7 +904,6 @@ local function makeColorRow(labelText, order, getColor, setColor, onChange)
     frame.Parent = content
     Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
 
-    -- Подпись
     local lbl = Instance.new("TextLabel")
     lbl.Size = UDim2.new(1, -12, 0, 20)
     lbl.Position = UDim2.new(0, 10, 0, 4)
@@ -889,7 +915,6 @@ local function makeColorRow(labelText, order, getColor, setColor, onChange)
     lbl.TextXAlignment = Enum.TextXAlignment.Left
     lbl.Parent = frame
 
-    -- Превью цвета
     local preview = Instance.new("Frame")
     preview.Size = UDim2.new(0, 22, 0, 22)
     preview.Position = UDim2.new(1, -28, 0, 12)
@@ -898,7 +923,6 @@ local function makeColorRow(labelText, order, getColor, setColor, onChange)
     preview.Parent = frame
     Instance.new("UICorner", preview).CornerRadius = UDim.new(0, 4)
 
-    -- Три поля R G B
     local c = getColor()
     local rVal = math.floor(c.R * 255)
     local gVal = math.floor(c.G * 255)
@@ -933,7 +957,6 @@ local function makeColorRow(labelText, order, getColor, setColor, onChange)
     local gBox = makeRGBBox("G", gVal, 62)
     local bBox = makeRGBBox("B", bVal, 114)
 
-    -- Метки R G B
     for i, lbTxt in ipairs({"R", "G", "B"}) do
         local ml = Instance.new("TextLabel")
         ml.Size = UDim2.new(0, 12, 0, 20)
@@ -964,52 +987,73 @@ local function makeColorRow(labelText, order, getColor, setColor, onChange)
     bBox.FocusLost:Connect(applyColor)
 end
 
--- Обычные игроки — цвет контура
+-- Обычные игроки
 makeColorRow("Обычный — контур", 16,
     function() return espColors.normal.outline end,
     function(c) espColors.normal.outline = c end,
-    refreshAllESP
-)
-
--- Обычные игроки — цвет текста
-makeColorRow("Обычный — текст ника", 17,
+    refreshAllESP)
+makeColorRow("Обычный — заливка", 17,
+    function() return espColors.normal.fill end,
+    function(c) espColors.normal.fill = c end,
+    refreshAllESP)
+makeColorRow("Обычный — текст ника", 18,
     function() return espColors.normal.text end,
     function(c) espColors.normal.text = c end,
-    refreshAllESP
-)
+    refreshAllESP)
 
--- TG игроки — цвет контура
-makeColorRow("TG — контур", 18,
+-- TG игроки
+makeColorRow("TG — контур", 19,
     function() return espColors.tg.outline end,
     function(c) espColors.tg.outline = c end,
-    refreshAllESP
-)
-
--- TG игроки — цвет заливки
-makeColorRow("TG — заливка", 19,
+    refreshAllESP)
+makeColorRow("TG — заливка", 20,
     function() return espColors.tg.fill end,
     function(c) espColors.tg.fill = c end,
-    refreshAllESP
-)
-
--- TG игроки — цвет текста
-makeColorRow("TG — текст ника", 20,
+    refreshAllESP)
+makeColorRow("TG — текст ника", 21,
     function() return espColors.tg.text end,
     function(c) espColors.tg.text = c end,
-    refreshAllESP
-)
+    refreshAllESP)
+
+-- YT игроки
+makeColorRow("YT — контур", 22,
+    function() return espColors.yt.outline end,
+    function(c) espColors.yt.outline = c end,
+    refreshAllESP)
+makeColorRow("YT — заливка", 23,
+    function() return espColors.yt.fill end,
+    function(c) espColors.yt.fill = c end,
+    refreshAllESP)
+makeColorRow("YT — текст ника", 24,
+    function() return espColors.yt.text end,
+    function(c) espColors.yt.text = c end,
+    refreshAllESP)
+
+-- TT игроки
+makeColorRow("TT — контур", 25,
+    function() return espColors.tt.outline end,
+    function(c) espColors.tt.outline = c end,
+    refreshAllESP)
+makeColorRow("TT — заливка", 26,
+    function() return espColors.tt.fill end,
+    function(c) espColors.tt.fill = c end,
+    refreshAllESP)
+makeColorRow("TT — текст ника", 27,
+    function() return espColors.tt.text end,
+    function(c) espColors.tt.text = c end,
+    refreshAllESP)
 
 -- ===============================
 -- === СЕКЦИЯ ПРЕСЛЕДОВАНИЯ ===
 -- ===============================
 
-makeLabel("— Преследование", content, 21)
+makeLabel("— Преследование", content, 30)
 
 local searchFrame = Instance.new("Frame")
 searchFrame.Size = UDim2.new(1, 0, 0, 36)
 searchFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
 searchFrame.BorderSizePixel = 0
-searchFrame.LayoutOrder = 22
+searchFrame.LayoutOrder = 31
 searchFrame.Parent = content
 Instance.new("UICorner", searchFrame).CornerRadius = UDim.new(0, 8)
 
@@ -1041,7 +1085,7 @@ local playersFrame = Instance.new("Frame")
 playersFrame.Size = UDim2.new(1, 0, 0, 120)
 playersFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
 playersFrame.BorderSizePixel = 0
-playersFrame.LayoutOrder = 23
+playersFrame.LayoutOrder = 32
 playersFrame.Parent = content
 Instance.new("UICorner", playersFrame).CornerRadius = UDim.new(0, 8)
 
@@ -1078,15 +1122,26 @@ local function refreshPlayers()
 
             if searchQuery == "" or searchTarget:find(searchQuery:lower(), 1, true) then
                 count += 1
-                local tg = isTGPlayer(p)
-                local icon = tg and "📡" or "👤"
+                local ptype = getPlayerType(p)
+                local icon = "👤"
+                local textColor = Color3.fromRGB(220, 220, 240)
+                if ptype == "tg" then
+                    icon = "📡"
+                    textColor = Color3.fromRGB(255, 210, 80)
+                elseif ptype == "yt" then
+                    icon = "▶️"
+                    textColor = Color3.fromRGB(255, 100, 100)
+                elseif ptype == "tt" then
+                    icon = "🎵"
+                    textColor = Color3.fromRGB(200, 200, 200)
+                end
 
                 local btn = Instance.new("TextButton")
                 btn.Size = UDim2.new(1, -6, 0, 30)
                 btn.BackgroundColor3 = Color3.fromRGB(45, 45, 65)
                 btn.BorderSizePixel = 0
                 btn.Text = "  " .. icon .. "  " .. displayName .. " (@" .. userName .. ")"
-                btn.TextColor3 = tg and Color3.fromRGB(255, 210, 80) or Color3.fromRGB(220, 220, 240)
+                btn.TextColor3 = textColor
                 btn.TextSize = 12
                 btn.Font = Enum.Font.Gotham
                 btn.TextXAlignment = Enum.TextXAlignment.Left
@@ -1131,7 +1186,7 @@ stopBtn.Text = "Остановить преследование"
 stopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 stopBtn.TextSize = 13
 stopBtn.Font = Enum.Font.GothamBold
-stopBtn.LayoutOrder = 24
+stopBtn.LayoutOrder = 33
 stopBtn.Parent = content
 Instance.new("UICorner", stopBtn).CornerRadius = UDim.new(0, 8)
 
@@ -1151,7 +1206,7 @@ stopBtn.MouseButton1Click:Connect(doStopFollow)
 -- === СЕКЦИЯ БИНДОВ ===
 -- ===============================
 
-makeLabel("— Бинды", content, 25)
+makeLabel("— Бинды", content, 40)
 
 local listeningFor = nil
 local bindKeyLabels = {}
@@ -1160,7 +1215,7 @@ local bindsContainer = Instance.new("Frame")
 bindsContainer.Size = UDim2.new(1, 0, 0, 272)
 bindsContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
 bindsContainer.BorderSizePixel = 0
-bindsContainer.LayoutOrder = 26
+bindsContainer.LayoutOrder = 41
 bindsContainer.Parent = content
 Instance.new("UICorner", bindsContainer).CornerRadius = UDim.new(0, 8)
 
@@ -1264,7 +1319,7 @@ hintLbl.TextColor3 = Color3.fromRGB(110, 110, 140)
 hintLbl.TextSize = 11
 hintLbl.Font = Enum.Font.Gotham
 hintLbl.TextXAlignment = Enum.TextXAlignment.Center
-hintLbl.LayoutOrder = 27
+hintLbl.LayoutOrder = 42
 hintLbl.Parent = content
 
 -- ===============================
@@ -1338,11 +1393,22 @@ local function serializeSettings()
         bindMenu              = tostring(binds.menu),
         bindWalkSpeed         = tostring(binds.walkSpeed),
         bindJumpHeight        = tostring(binds.jumpHeight),
+        -- normal
         espNormalOutline      = colorToStr(espColors.normal.outline),
+        espNormalFill         = colorToStr(espColors.normal.fill),
         espNormalText         = colorToStr(espColors.normal.text),
+        -- tg
         espTgOutline          = colorToStr(espColors.tg.outline),
         espTgFill             = colorToStr(espColors.tg.fill),
         espTgText             = colorToStr(espColors.tg.text),
+        -- yt
+        espYtOutline          = colorToStr(espColors.yt.outline),
+        espYtFill             = colorToStr(espColors.yt.fill),
+        espYtText             = colorToStr(espColors.yt.text),
+        -- tt
+        espTtOutline          = colorToStr(espColors.tt.outline),
+        espTtFill             = colorToStr(espColors.tt.fill),
+        espTtText             = colorToStr(espColors.tt.text),
     }
 end
 
@@ -1394,13 +1460,19 @@ local function applyLoadedSettings()
         end
     end
 
-    -- Загрузка цветов ESP
     local colorFields = {
         {field="espNormalOutline", tbl=espColors.normal, key="outline"},
+        {field="espNormalFill",    tbl=espColors.normal, key="fill"},
         {field="espNormalText",    tbl=espColors.normal, key="text"},
         {field="espTgOutline",     tbl=espColors.tg,     key="outline"},
         {field="espTgFill",        tbl=espColors.tg,     key="fill"},
         {field="espTgText",        tbl=espColors.tg,     key="text"},
+        {field="espYtOutline",     tbl=espColors.yt,     key="outline"},
+        {field="espYtFill",        tbl=espColors.yt,     key="fill"},
+        {field="espYtText",        tbl=espColors.yt,     key="text"},
+        {field="espTtOutline",     tbl=espColors.tt,     key="outline"},
+        {field="espTtFill",        tbl=espColors.tt,     key="fill"},
+        {field="espTtText",        tbl=espColors.tt,     key="text"},
     }
     for _, cf in ipairs(colorFields) do
         if result[cf.field] then
@@ -1435,7 +1507,7 @@ versionFrame.Parent = content
 local versionLabel = Instance.new("TextLabel")
 versionLabel.Size = UDim2.new(1, 0, 1, 0)
 versionLabel.BackgroundTransparency = 1
-versionLabel.Text = "v1.7.0"
+versionLabel.Text = "v1.7.1"
 versionLabel.TextColor3 = Color3.fromRGB(100, 100, 130)
 versionLabel.TextSize = 11
 versionLabel.Font = Enum.Font.GothamBold
@@ -1521,4 +1593,4 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
-print("💤 DreamCheats v1.7.0 | TG по Name+DisplayName | RGB настройка цветов ESP | DisplayName (@name) везде")
+print("💤 DreamCheats v1.7.1 | Заливка для всех | YT (красный) | TT (чёрный) | RGB цвета ESP")
