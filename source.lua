@@ -1,4 +1,4 @@
--- DreamCheats GUI Script v1.7.1
+-- DreamCheats GUI Script v1.7.3
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -40,7 +40,6 @@ local espColors = {
         fillTransparency = 0.72,
         text    = Color3.fromRGB(255, 255, 255),
     },
-    -- Murder Mystery 2 роли
     mm2_innocent = {
         outline = Color3.fromRGB(0, 220, 80),
         fill    = Color3.fromRGB(0, 180, 60),
@@ -108,7 +107,98 @@ local function keyName(kc)
     return s:match("KeyCode%.(.+)") or s
 end
 
--- Проверка типа игрока по Name И DisplayName
+-- === MM2 ===
+local MM2_GAME_ID = 142823291
+
+local function isInMM2()
+    return game.PlaceId == MM2_GAME_ID
+end
+
+local function getMM2Role(player)
+    -- Метод 1: через Teams (имя команды)
+    local team = player.Team
+    if team then
+        local tname = team.Name:lower()
+        if tname:find("murderer") or tname:find("убийц") then
+            return "mm2_murderer"
+        elseif tname:find("sheriff") or tname:find("шериф") then
+            return "mm2_sheriff"
+        elseif tname:find("innocent") or tname:find("невинн") then
+            return "mm2_innocent"
+        end
+    end
+
+    -- Метод 2: через Backpack и Character (наличие инструментов)
+    local function hasToolNamed(container, names)
+        if not container then return false end
+        for _, obj in pairs(container:GetChildren()) do
+            if obj:IsA("Tool") or obj:IsA("BackpackItem") then
+                local n = obj.Name:lower()
+                for _, name in ipairs(names) do
+                    if n:find(name) then return true end
+                end
+            end
+        end
+        return false
+    end
+
+    local bp   = player:FindFirstChildOfClass("Backpack")
+    local char = player.Character
+
+    local knifeNames = {"knife","кинжал","blade","dagger","mm2knife","knive"}
+    local gunNames   = {"gun","sheriff","pistol","revolver","mm2gun","glock"}
+
+    if hasToolNamed(bp, knifeNames) or hasToolNamed(char, knifeNames) then
+        return "mm2_murderer"
+    elseif hasToolNamed(bp, gunNames) or hasToolNamed(char, gunNames) then
+        return "mm2_sheriff"
+    end
+
+    -- Метод 3: через потомков персонажа (DisplayRef, StringValue и т.п.)
+    if char then
+        for _, desc in pairs(char:GetDescendants()) do
+            local n = desc.Name:lower()
+            if n == "murderer" or n == "killer" or n == "displayrefknife" then
+                return "mm2_murderer"
+            end
+            if n == "sheriff" or n == "cop" or n == "displayrefgun" then
+                return "mm2_sheriff"
+            end
+        end
+    end
+
+    -- Метод 4: по BrickColor команды (MM2 использует стандартные цвета)
+    -- Murderer = Bright red (21), Sheriff = Bright blue (23), Innocent = Bright green (37)
+    if team then
+        local tc = team.TeamColor
+        if tc == BrickColor.new(21) or tc == BrickColor.new("Bright red") then
+            return "mm2_murderer"
+        elseif tc == BrickColor.new(23) or tc == BrickColor.new("Bright blue") then
+            return "mm2_sheriff"
+        elseif tc == BrickColor.new(37) or tc == BrickColor.new("Bright green") then
+            return "mm2_innocent"
+        end
+    end
+
+    -- Определяем идёт ли раунд (есть ли у кого-то роль убийцы/шерифа)
+    local roundActive = false
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= player then
+            local pt = p.Team
+            if pt then
+                local ptn = pt.Name:lower()
+                if ptn:find("murderer") or ptn:find("sheriff") then
+                    roundActive = true
+                    break
+                end
+            end
+        end
+    end
+
+    return roundActive and "mm2_innocent" or nil
+end
+
+-- === Определение типа игрока по нику ===
 local function getPlayerType(player)
     local nameLow = player.Name:lower()
     local dispLow = player.DisplayName:lower()
@@ -127,43 +217,8 @@ local function getPlayerType(player)
     return "normal"
 end
 
--- Обратная совместимость
 local function isTGPlayer(player)
     return getPlayerType(player) == "tg"
-end
-
--- === MM2: определение роли по команде ===
-local MM2_GAME_ID = 142823291
-
-local function isInMM2()
-    return game.PlaceId == MM2_GAME_ID
-end
-
-local function getMM2Role(player)
-    -- MM2 хранит роли через ObjectValue в персонаже:
-    -- DisplayRefKnife = Murderer, DisplayRefGun = Sheriff, иначе = Innocent
-    local char = player.Character
-    if not char then return nil end
-
-    if char:FindFirstChild("DisplayRefKnife") then
-        return "mm2_murderer"
-    elseif char:FindFirstChild("DisplayRefGun") then
-        return "mm2_sheriff"
-    else
-        -- Innocent только если раунд идёт — проверяем по наличию у хоть кого-то ножа/пистолета
-        local roundActive = false
-        for _, p in pairs(Players:GetPlayers()) do
-            local c = p.Character
-            if c and (c:FindFirstChild("DisplayRefKnife") or c:FindFirstChild("DisplayRefGun")) then
-                roundActive = true
-                break
-            end
-        end
-        if roundActive then
-            return "mm2_innocent"
-        end
-        return nil  -- лобби, роли не назначены
-    end
 end
 
 -- === GUI ===
@@ -598,26 +653,6 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- === MM2: авто-обновление ESP при изменении роли ===
-do
-    local lastRoles = {}
-    RunService.Heartbeat:Connect(function()
-        if not espEnabled or not isInMM2() then return end
-        for _, p in pairs(Players:GetPlayers()) do
-            if p ~= localPlayer then
-                local role = getMM2Role(p) or "none"
-                if lastRoles[p.Name] ~= role then
-                    lastRoles[p.Name] = role
-                    task.spawn(function()
-                        task.wait(0.05)
-                        if espEnabled then createESP(p) end
-                    end)
-                end
-            end
-        end
-    end)
-end
-
 -- === МЕНЮ ===
 local menuVisible = true
 
@@ -638,6 +673,7 @@ local function toggleMenu()
 end
 
 -- === ESP ===
+-- ВАЖНО: espEnabled объявляется ДО любых RunService соединений, которые его используют
 local espEnabled = false
 local espFolder = nil
 local espPlayerFolders = {}
@@ -648,7 +684,11 @@ local function removeESP(player)
     espPlayerFolders[player.Name] = nil
 end
 
-local function createESP(player)
+-- forward declaration
+local createESP
+local refreshAllESP
+
+createESP = function(player)
     if player == localPlayer then return end
     if not espFolder or not espFolder.Parent then return end
     removeESP(player)
@@ -658,7 +698,7 @@ local function createESP(player)
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
-    -- В MM2 приоритет — роль по команде; иначе обычная логика по нику
+    -- В MM2 приоритет — роль; иначе обычная логика по нику
     local ptype
     if isInMM2() then
         ptype = getMM2Role(player) or getPlayerType(player)
@@ -681,11 +721,11 @@ local function createESP(player)
     hl.FillTransparency = colors.fillTransparency
     hl.Parent = pFolder
 
-    -- BillboardGui: DisplayName (@username)
+    -- BillboardGui: DisplayName (@username) + роль в MM2
     local bb = Instance.new("BillboardGui")
     bb.Name = "BB_" .. player.Name
     bb.Adornee = hrp
-    bb.Size = UDim2.new(0, 180, 0, 26)
+    bb.Size = UDim2.new(0, 200, 0, 26)
     bb.StudsOffset = Vector3.new(0, 3.5, 0)
     bb.AlwaysOnTop = true
     bb.ResetOnSpawn = false
@@ -694,7 +734,6 @@ local function createESP(player)
     local nameLabel = Instance.new("TextLabel")
     nameLabel.Size = UDim2.new(1, 0, 1, 0)
     nameLabel.BackgroundTransparency = 1
-    -- В MM2 добавляем метку роли перед ником
     local roleTag = ""
     if isInMM2() then
         if ptype == "mm2_murderer" then roleTag = "🔪 "
@@ -711,12 +750,59 @@ local function createESP(player)
     nameLabel.Parent = bb
 end
 
-local function refreshAllESP()
+refreshAllESP = function()
     if not espEnabled then return end
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= localPlayer then
             createESP(p)
         end
+    end
+end
+
+-- Хелпер: подписываемся на события конкретного игрока (Backpack, Character)
+local function hookPlayerESP(p)
+    -- Спавн персонажа
+    p.CharacterAdded:Connect(function(char)
+        task.wait(0.3)
+        if espEnabled then createESP(p) end
+
+        -- Следим за выдачей инструментов в персонаже (MM2)
+        if isInMM2() then
+            char.ChildAdded:Connect(function()
+                task.wait(0.1)
+                if espEnabled then createESP(p) end
+            end)
+            char.ChildRemoved:Connect(function()
+                task.wait(0.1)
+                if espEnabled then createESP(p) end
+            end)
+        end
+    end)
+
+    -- Следим за Backpack (MM2: выдача ножа/пистолета)
+    if isInMM2() then
+        local function hookBackpack(bp)
+            if not bp then return end
+            bp.ChildAdded:Connect(function()
+                task.wait(0.1)
+                if espEnabled then createESP(p) end
+            end)
+            bp.ChildRemoved:Connect(function()
+                task.wait(0.1)
+                if espEnabled then createESP(p) end
+            end)
+        end
+        local bp = p:FindFirstChildOfClass("Backpack")
+        hookBackpack(bp)
+        p.ChildAdded:Connect(function(child)
+            if child:IsA("Backpack") then hookBackpack(child) end
+        end)
+
+        -- Следим за изменением команды (Team)
+        p:GetPropertyChangedSignal("Team"):Connect(function()
+            task.wait(0.05)
+            if espEnabled then createESP(p) end
+        end)
     end
 end
 
@@ -728,31 +814,47 @@ local function enableESP()
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= localPlayer then
             createESP(p)
-            p.CharacterAdded:Connect(function()
-                task.wait(0.3)
-                if espEnabled then createESP(p) end
-            end)
+            hookPlayerESP(p)
         end
     end
 
     Players.PlayerAdded:Connect(function(p)
         if not espEnabled then return end
-        p.CharacterAdded:Connect(function()
-            task.wait(0.3)
-            if espEnabled then createESP(p) end
-        end)
+        hookPlayerESP(p)
+        task.wait(0.3)
+        if espEnabled then createESP(p) end
     end)
 
     Players.PlayerRemoving:Connect(function(p)
         removeESP(p)
     end)
-
 end
 
 local function disableESP()
     if espFolder and espFolder.Parent then espFolder:Destroy() end
     espFolder = nil
     for k in pairs(espPlayerFolders) do espPlayerFolders[k] = nil end
+end
+
+-- === MM2: авто-обновление ESP при изменении роли (heartbeat fallback) ===
+-- Этот блок стоит ПОСЛЕ объявления espEnabled и createESP
+do
+    local lastRoles = {}
+    RunService.Heartbeat:Connect(function()
+        if not espEnabled or not isInMM2() then return end
+        for _, p in pairs(Players:GetPlayers()) do
+            if p ~= localPlayer then
+                local role = getMM2Role(p) or "none"
+                if lastRoles[p.Name] ~= role then
+                    lastRoles[p.Name] = role
+                    task.spawn(function()
+                        task.wait(0.05)
+                        if espEnabled then createESP(p) end
+                    end)
+                end
+            end
+        end
+    end)
 end
 
 -- === UI ЭЛЕМЕНТЫ ===
@@ -1481,19 +1583,15 @@ local function serializeSettings()
         bindMenu              = tostring(binds.menu),
         bindWalkSpeed         = tostring(binds.walkSpeed),
         bindJumpHeight        = tostring(binds.jumpHeight),
-        -- normal
         espNormalOutline      = colorToStr(espColors.normal.outline),
         espNormalFill         = colorToStr(espColors.normal.fill),
         espNormalText         = colorToStr(espColors.normal.text),
-        -- tg
         espTgOutline          = colorToStr(espColors.tg.outline),
         espTgFill             = colorToStr(espColors.tg.fill),
         espTgText             = colorToStr(espColors.tg.text),
-        -- yt
         espYtOutline          = colorToStr(espColors.yt.outline),
         espYtFill             = colorToStr(espColors.yt.fill),
         espYtText             = colorToStr(espColors.yt.text),
-        -- tt
         espTtOutline          = colorToStr(espColors.tt.outline),
         espTtFill             = colorToStr(espColors.tt.fill),
         espTtText             = colorToStr(espColors.tt.text),
@@ -1595,7 +1693,7 @@ versionFrame.Parent = content
 local versionLabel = Instance.new("TextLabel")
 versionLabel.Size = UDim2.new(1, 0, 1, 0)
 versionLabel.BackgroundTransparency = 1
-versionLabel.Text = "v1.7.2"
+versionLabel.Text = "v1.7.3"
 versionLabel.TextColor3 = Color3.fromRGB(100, 100, 130)
 versionLabel.TextSize = 11
 versionLabel.Font = Enum.Font.GothamBold
@@ -1681,4 +1779,4 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
-print("💤 DreamCheats v1.7.2 | MM2 ESP: Innocent=зелёный, Murderer=красный, Sheriff=синий | Авто-обновление при смене роли")
+print("💤 DreamCheats v1.7.3 | MM2 ESP FIXED: Teams+Backpack+Descendants+TeamColor | Innocent=зелёный, Murderer=красный, Sheriff=синий")
