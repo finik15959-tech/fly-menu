@@ -140,18 +140,30 @@ local function isInMM2()
 end
 
 local function getMM2Role(player)
-    -- Команды в MM2: "Innocents", "Murderer", "Sheriff"
-    local team = player.Team
-    if not team then return nil end
-    local tname = team.Name:lower()
-    if tname == "murderer" then
+    -- MM2 хранит роли через ObjectValue в персонаже:
+    -- DisplayRefKnife = Murderer, DisplayRefGun = Sheriff, иначе = Innocent
+    local char = player.Character
+    if not char then return nil end
+
+    if char:FindFirstChild("DisplayRefKnife") then
         return "mm2_murderer"
-    elseif tname == "sheriff" then
+    elseif char:FindFirstChild("DisplayRefGun") then
         return "mm2_sheriff"
-    elseif tname == "innocents" then
-        return "mm2_innocent"
+    else
+        -- Innocent только если раунд идёт — проверяем по наличию у хоть кого-то ножа/пистолета
+        local roundActive = false
+        for _, p in pairs(Players:GetPlayers()) do
+            local c = p.Character
+            if c and (c:FindFirstChild("DisplayRefKnife") or c:FindFirstChild("DisplayRefGun")) then
+                roundActive = true
+                break
+            end
+        end
+        if roundActive then
+            return "mm2_innocent"
+        end
+        return nil  -- лобби, роли не назначены
     end
-    return nil
 end
 
 -- === GUI ===
@@ -586,6 +598,26 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
+-- === MM2: авто-обновление ESP при изменении роли ===
+do
+    local lastRoles = {}
+    RunService.Heartbeat:Connect(function()
+        if not espEnabled or not isInMM2() then return end
+        for _, p in pairs(Players:GetPlayers()) do
+            if p ~= localPlayer then
+                local role = getMM2Role(p) or "none"
+                if lastRoles[p.Name] ~= role then
+                    lastRoles[p.Name] = role
+                    task.spawn(function()
+                        task.wait(0.05)
+                        if espEnabled then createESP(p) end
+                    end)
+                end
+            end
+        end
+    end)
+end
+
 -- === МЕНЮ ===
 local menuVisible = true
 
@@ -715,23 +747,6 @@ local function enableESP()
         removeESP(p)
     end)
 
-    -- MM2: обновлять ESP при смене команды (раздача ролей)
-    if isInMM2() then
-        for _, p in pairs(Players:GetPlayers()) do
-            if p ~= localPlayer then
-                p:GetPropertyChangedSignal("Team"):Connect(function()
-                    task.wait(0.1)
-                    if espEnabled then createESP(p) end
-                end)
-            end
-        end
-        Players.PlayerAdded:Connect(function(p)
-            p:GetPropertyChangedSignal("Team"):Connect(function()
-                task.wait(0.1)
-                if espEnabled then createESP(p) end
-            end)
-        end)
-    end
 end
 
 local function disableESP()
