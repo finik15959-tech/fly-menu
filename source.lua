@@ -1,4 +1,4 @@
--- DreamCheats GUI Script v1.7.4
+-- Testing GUI Script v1.7.4
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -6,7 +6,7 @@ local TweenService = game:GetService("TweenService")
 
 local localPlayer = Players.LocalPlayer
 
-local SAVE_FILE = "DreamCheats_settings.txt"
+local SAVE_FILE = "Testing_settings.txt"
 
 local function serialize(data)
     local parts = {}
@@ -187,7 +187,7 @@ end
 
 -- === GUI ===
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "DreamCheats"
+screenGui.Name = "Testing"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = game.CoreGui
 
@@ -230,7 +230,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -10, 1, 0)
 title.Position = UDim2.new(0, 10, 0, 0)
 title.BackgroundTransparency = 1
-title.Text = "💤  DreamCheats"
+title.Text = "💤  Testing"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.TextSize = 18
 title.Font = Enum.Font.GothamBold
@@ -772,7 +772,7 @@ end
 
 local function enableESP()
     espFolder = Instance.new("Folder")
-    espFolder.Name = "DreamCheatsESP"
+    espFolder.Name = "TestingESP"
     espFolder.Parent = workspace
 
     for _, p in pairs(Players:GetPlayers()) do
@@ -1743,4 +1743,4 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
-print("💤 DreamCheats v1.7.4 | MM2 ESP: Knife=красный, Gun Tool=синий, остальные=зелёный | Авто-обновление при смене оружия")
+print("💤 Testing v1.7.4 | MM2 ESP: Knife=красный, Gun Tool=синий, остальные=зелёный | Авто-обновление при смене оружия")
