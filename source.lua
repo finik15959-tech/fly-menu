@@ -1,4 +1,4 @@
--- Testing GUI Script v1.7.4
+-- Testing GUI Script v1.7.5
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -90,6 +90,8 @@ local config = {
     targetPlayer       = nil,
     walkSpeedEnabled   = false,
     jumpHeightEnabled  = false,
+    antiFlingEnabled   = false,
+    antiFlingMaxVel    = 200,
 }
 
 local binds = {
@@ -100,6 +102,7 @@ local binds = {
     menu       = Enum.KeyCode.F9,
     walkSpeed  = Enum.KeyCode.F1,
     jumpHeight = Enum.KeyCode.F2,
+    antiFling  = Enum.KeyCode.F3,
 }
 
 local function keyName(kc)
@@ -115,19 +118,14 @@ local function isInMM2()
 end
 
 local function getMM2Role(player)
-    -- По логу: Team=nil у всех, инструменты называются "Knife" и "Gun Tool"
-    -- Ищем инструменты в Backpack И в руках персонажа
-
     local function getToolName(container)
         if not container then return nil end
         for _, obj in pairs(container:GetChildren()) do
             if obj:IsA("Tool") then
                 local n = obj.Name:lower()
-                -- Нож: "knife", "knive", "blade"
                 if n == "knife" or n == "knive" or n:find("knife") or n:find("blade") then
                     return "mm2_murderer"
                 end
-                -- Пистолет: "gun tool", "gun", "sheriff gun", "revolver"
                 if n == "gun tool" or n == "gun" or n:find("gun") or n:find("revolver") or n:find("sheriff") then
                     return "mm2_sheriff"
                 end
@@ -136,18 +134,14 @@ local function getMM2Role(player)
         return nil
     end
 
-    -- Проверяем Backpack
     local bp = player:FindFirstChildOfClass("Backpack")
     local roleFromBP = getToolName(bp)
     if roleFromBP then return roleFromBP end
 
-    -- Проверяем руки персонажа (экипированный инструмент)
     local char = player.Character
     local roleFromChar = getToolName(char)
     if roleFromChar then return roleFromChar end
 
-    -- Нет ни ножа ни пистолета — проверяем идёт ли раунд
-    -- (есть ли хоть у кого-то нож или пистолет)
     local roundActive = false
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= player then
@@ -158,11 +152,9 @@ local function getMM2Role(player)
         end
     end
 
-    -- Если раунд идёт и у игрока нет оружия — он невиновный
     return roundActive and "mm2_innocent" or nil
 end
 
--- === Определение типа игрока по нику ===
 local function getPlayerType(player)
     local nameLow = player.Name:lower()
     local dispLow = player.DisplayName:lower()
@@ -192,8 +184,8 @@ screenGui.ResetOnSpawn = false
 screenGui.Parent = game.CoreGui
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 280, 0, 680)
-mainFrame.Position = UDim2.new(0, 20, 0.5, -340)
+mainFrame.Size = UDim2.new(0, 280, 0, 720)
+mainFrame.Position = UDim2.new(0, 20, 0.5, -360)
 mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
 mainFrame.BorderSizePixel = 0
 mainFrame.ClipsDescendants = true
@@ -573,6 +565,59 @@ local function disableFly()
     task.delay(0.1, unfreezeChar)
 end
 
+-- === АНТИФЛИНГ ===
+-- Защищает своего персонажа от резкого отброса (флинга)
+local antiFlingConnection = nil
+
+local function enableAntiFling()
+    -- Отключаем предыдущее соединение если есть
+    if antiFlingConnection then
+        antiFlingConnection:Disconnect()
+        antiFlingConnection = nil
+    end
+
+    antiFlingConnection = RunService.Heartbeat:Connect(function()
+        if not config.antiFlingEnabled then return end
+
+        local char = localPlayer.Character
+        if not char then return end
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+
+        -- Если летим — антифлинг не мешает
+        if config.flying then return end
+
+        local vel = hrp.AssemblyLinearVelocity
+        local maxVel = config.antiFlingMaxVel
+
+        if vel.Magnitude > maxVel then
+            -- Гасим скорость до допустимого порога
+            hrp.AssemblyLinearVelocity = vel.Unit * maxVel
+        end
+
+        -- Также сбрасываем угловую скорость (вращение при флинге)
+        local angVel = hrp.AssemblyAngularVelocity
+        if angVel.Magnitude > 20 then
+            hrp.AssemblyAngularVelocity = Vector3.zero
+        end
+    end)
+end
+
+local function disableAntiFling()
+    if antiFlingConnection then
+        antiFlingConnection:Disconnect()
+        antiFlingConnection = nil
+    end
+end
+
+-- Переподключаем антифлинг при респавне
+localPlayer.CharacterAdded:Connect(function()
+    task.wait(1)
+    if config.antiFlingEnabled then
+        enableAntiFling()
+    end
+end)
+
 RunService.Stepped:Connect(function()
     if not config.noclip then return end
     local char = localPlayer.Character
@@ -626,7 +671,7 @@ local function toggleMenu()
         mainFrame.Visible = true
         mainFrame.Size = UDim2.new(0, 0, 0, 0)
         TweenService:Create(mainFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-            Size = UDim2.new(0, 280, 0, 680),
+            Size = UDim2.new(0, 280, 0, 720),
         }):Play()
     else
         TweenService:Create(mainFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
@@ -637,7 +682,6 @@ local function toggleMenu()
 end
 
 -- === ESP ===
--- ВАЖНО: espEnabled объявляется ДО любых RunService соединений, которые его используют
 local espEnabled = false
 local espFolder = nil
 local espPlayerFolders = {}
@@ -648,7 +692,6 @@ local function removeESP(player)
     espPlayerFolders[player.Name] = nil
 end
 
--- forward declaration
 local createESP
 local refreshAllESP
 
@@ -662,7 +705,6 @@ createESP = function(player)
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
-    -- В MM2 приоритет — роль; иначе обычная логика по нику
     local ptype
     if isInMM2() then
         ptype = getMM2Role(player) or getPlayerType(player)
@@ -685,7 +727,6 @@ createESP = function(player)
     hl.FillTransparency = colors.fillTransparency
     hl.Parent = pFolder
 
-    -- BillboardGui: DisplayName (@username) + роль в MM2
     local bb = Instance.new("BillboardGui")
     bb.Name = "BB_" .. player.Name
     bb.Adornee = hrp
@@ -723,14 +764,11 @@ refreshAllESP = function()
     end
 end
 
--- Хелпер: подписываемся на события конкретного игрока (Backpack, Character)
 local function hookPlayerESP(p)
-    -- Спавн персонажа
     p.CharacterAdded:Connect(function(char)
         task.wait(0.3)
         if espEnabled then createESP(p) end
 
-        -- Следим за выдачей инструментов в персонаже (MM2)
         if isInMM2() then
             char.ChildAdded:Connect(function()
                 task.wait(0.1)
@@ -743,7 +781,6 @@ local function hookPlayerESP(p)
         end
     end)
 
-    -- Следим за Backpack (MM2: выдача ножа/пистолета)
     if isInMM2() then
         local function hookBackpack(bp)
             if not bp then return end
@@ -762,7 +799,6 @@ local function hookPlayerESP(p)
             if child:IsA("Backpack") then hookBackpack(child) end
         end)
 
-        -- Следим за изменением команды (Team)
         p:GetPropertyChangedSignal("Team"):Connect(function()
             task.wait(0.05)
             if espEnabled then createESP(p) end
@@ -800,8 +836,6 @@ local function disableESP()
     for k in pairs(espPlayerFolders) do espPlayerFolders[k] = nil end
 end
 
--- === MM2: авто-обновление ESP при изменении роли (heartbeat fallback) ===
--- Этот блок стоит ПОСЛЕ объявления espEnabled и createESP
 do
     local lastRoles = {}
     RunService.Heartbeat:Connect(function()
@@ -823,6 +857,7 @@ end
 
 -- === UI ЭЛЕМЕНТЫ ===
 local espToggle = function() end
+local antiFlingToggleFn = function() end
 
 local greetFrame = Instance.new("Frame")
 greetFrame.Size = UDim2.new(1, 0, 0, 36)
@@ -867,13 +902,40 @@ local _ef, _espFn = makeToggle("ESP (бокс + ник)", 4, function(state)
 end)
 espToggle = _espFn
 
-makeSpeedControl(5)
+-- === АНТИФЛИНГ ТОГЛ ===
+local _, _antiFlingFn = makeToggle("🛡  Антифлинг", 5, function(state)
+    config.antiFlingEnabled = state
+    if state then
+        enableAntiFling()
+    else
+        disableAntiFling()
+    end
+end)
+antiFlingToggleFn = _antiFlingFn
+
+-- Слайдер порога антифлинга
+do
+    local afSlider = makeSliderControl({
+        label       = "Порог антифлинга (studs/s)",
+        order       = 6,
+        sliderMin   = 50,
+        sliderMax   = 500,
+        inputMax    = 1000,
+        initVal     = config.antiFlingMaxVel,
+        accentColor = Color3.fromRGB(80, 200, 180),
+        onChanged   = function(val)
+            config.antiFlingMaxVel = val
+        end,
+    })
+end
+
+makeSpeedControl(7)
 
 -- WalkSpeed
 do
     local s = makeSliderControl({
         label       = "Скорость ходьбы",
-        order       = 6,
+        order       = 8,
         sliderMin   = 8,
         sliderMax   = 100,
         inputMax    = 300,
@@ -957,7 +1019,7 @@ end
 do
     local s = makeSliderControl({
         label       = "Высота прыжка",
-        order       = 7,
+        order       = 9,
         sliderMin   = 0,
         sliderMax   = 100,
         inputMax    = 300,
@@ -1141,7 +1203,6 @@ local function makeColorRow(labelText, order, getColor, setColor, onChange)
     bBox.FocusLost:Connect(applyColor)
 end
 
--- Обычные игроки
 makeColorRow("Обычный — контур", 16,
     function() return espColors.normal.outline end,
     function(c) espColors.normal.outline = c end,
@@ -1155,7 +1216,6 @@ makeColorRow("Обычный — текст ника", 18,
     function(c) espColors.normal.text = c end,
     refreshAllESP)
 
--- TG игроки
 makeColorRow("TG — контур", 19,
     function() return espColors.tg.outline end,
     function(c) espColors.tg.outline = c end,
@@ -1169,7 +1229,6 @@ makeColorRow("TG — текст ника", 21,
     function(c) espColors.tg.text = c end,
     refreshAllESP)
 
--- YT игроки
 makeColorRow("YT — контур", 22,
     function() return espColors.yt.outline end,
     function(c) espColors.yt.outline = c end,
@@ -1183,7 +1242,6 @@ makeColorRow("YT — текст ника", 24,
     function(c) espColors.yt.text = c end,
     refreshAllESP)
 
--- TT игроки
 makeColorRow("TT — контур", 25,
     function() return espColors.tt.outline end,
     function(c) espColors.tt.outline = c end,
@@ -1366,7 +1424,7 @@ local listeningFor = nil
 local bindKeyLabels = {}
 
 local bindsContainer = Instance.new("Frame")
-bindsContainer.Size = UDim2.new(1, 0, 0, 272)
+bindsContainer.Size = UDim2.new(1, 0, 0, 310)
 bindsContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
 bindsContainer.BorderSizePixel = 0
 bindsContainer.LayoutOrder = 41
@@ -1386,6 +1444,7 @@ local bindRows = {
     { key = "menu",       icon = "📋", label = "Открыть/закрыть меню",   order = 5 },
     { key = "walkSpeed",  icon = "🏃", label = "WalkSpeed вкл/выкл",     order = 6 },
     { key = "jumpHeight", icon = "⬆",  label = "JumpHeight вкл/выкл",    order = 7 },
+    { key = "antiFling",  icon = "🛡",  label = "Антифлинг вкл/выкл",    order = 8 },
 }
 
 local function makeBindRow(data)
@@ -1540,6 +1599,7 @@ end
 local function serializeSettings()
     return {
         flySpeed              = config.flySpeed,
+        antiFlingMaxVel       = config.antiFlingMaxVel,
         bindFly               = tostring(binds.fly),
         bindNoclip            = tostring(binds.noclip),
         bindUnfollow          = tostring(binds.unfollow),
@@ -1547,6 +1607,7 @@ local function serializeSettings()
         bindMenu              = tostring(binds.menu),
         bindWalkSpeed         = tostring(binds.walkSpeed),
         bindJumpHeight        = tostring(binds.jumpHeight),
+        bindAntiFling         = tostring(binds.antiFling),
         espNormalOutline      = colorToStr(espColors.normal.outline),
         espNormalFill         = colorToStr(espColors.normal.fill),
         espNormalText         = colorToStr(espColors.normal.text),
@@ -1595,11 +1656,14 @@ local function applyLoadedSettings()
         end
     end
 
+    local afv = tonumber(result.antiFlingMaxVel)
+    if afv then config.antiFlingMaxVel = math.clamp(math.floor(afv), 50, 1000) end
+
     local bindFields = {
         {field="bindFly",key="fly"},{field="bindNoclip",key="noclip"},
         {field="bindUnfollow",key="unfollow"},{field="bindEsp",key="esp"},
         {field="bindMenu",key="menu"},{field="bindWalkSpeed",key="walkSpeed"},
-        {field="bindJumpHeight",key="jumpHeight"},
+        {field="bindJumpHeight",key="jumpHeight"},{field="bindAntiFling",key="antiFling"},
     }
     for _, b in ipairs(bindFields) do
         local kc = toKeyCode(result[b.field])
@@ -1657,7 +1721,7 @@ versionFrame.Parent = content
 local versionLabel = Instance.new("TextLabel")
 versionLabel.Size = UDim2.new(1, 0, 1, 0)
 versionLabel.BackgroundTransparency = 1
-versionLabel.Text = "v1.7.4"
+versionLabel.Text = "v1.7.5"
 versionLabel.TextColor3 = Color3.fromRGB(100, 100, 130)
 versionLabel.TextSize = 11
 versionLabel.Font = Enum.Font.GothamBold
@@ -1729,6 +1793,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if input.KeyCode == binds.menu then toggleMenu() return end
     if input.KeyCode == binds.unfollow then doStopFollow() return end
     if input.KeyCode == binds.esp then espToggle() return end
+    if input.KeyCode == binds.antiFling then antiFlingToggleFn() return end
 
     if gameProcessed then return end
 
@@ -1743,4 +1808,4 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
-print("💤 Testing v1.7.4 | MM2 ESP: Knife=красный, Gun Tool=синий, остальные=зелёный | Авто-обновление при смене оружия")
+print("💤 Testing v1.7.5 | Антифлинг добавлен (🛡 F3) | MM2 ESP: Knife=красный, Gun Tool=синий, остальные=зелёный")
